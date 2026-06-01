@@ -4,7 +4,6 @@ AstraClient is the public client identity for this project.
 
 Created/maintained by Mateuzkl.
 
-Credits: Mateuzkl / Equipe Skyyzyy.
 
 ## Build
 
