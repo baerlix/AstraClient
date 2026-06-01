@@ -106,6 +106,11 @@ ThingType* Thing::rawGetThingType()
     return g_things.getNullThingType().get();
 }
 
+uint16 Thing::getClassification()
+{
+    return rawGetThingType()->getClassification();
+}
+
 Color Thing::updatedMarkedColor() {
     if (!m_marked)
         return Color::white;

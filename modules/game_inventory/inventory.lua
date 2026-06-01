@@ -328,6 +328,7 @@ function onInventoryChange(player, slot, item, oldItem)
     itemWidget.quicklootflags:setVisible(false)
     itemWidget:setItem(nil)
   end
+  ItemsDatabase.setTier(itemWidget, item)
   slotValue[slot] = item
 end
 

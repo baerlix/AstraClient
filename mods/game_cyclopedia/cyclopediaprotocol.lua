@@ -14,6 +14,37 @@ local RESP_BESTIARY_MONSTER = 3
 local RESP_TRACKER = 5
 
 local registered = false
+local monsterCache = {}
+
+local function cacheCreatureInfo(raceId, creature)
+  raceId = tonumber(raceId)
+  if not raceId or raceId <= 0 or not creature then
+    return
+  end
+
+  monsterCache[raceId] = {
+    creature.name,
+    creature.type,
+    0,
+    creature.head,
+    creature.body,
+    creature.legs,
+    creature.feet,
+    creature.addons
+  }
+end
+
+function getCyclopediaMonsterList()
+  local monsters = g_things.getMonsterList()
+  for raceId, creature in pairs(monsterCache) do
+    monsters[raceId] = creature
+  end
+  return monsters
+end
+
+function getCyclopediaMonster(raceId)
+  return getCyclopediaMonsterList()[tonumber(raceId) or 0]
+end
 
 local function sendMessage(msg)
   local protocolGame = g_game.getProtocolGame()
@@ -55,7 +86,7 @@ local function parseCharmData(msg)
       if assigned then
         assignedRaceId = msg:getU16()
         removePrice = msg:getU32()
-        readCreatureInfo(msg)
+        cacheCreatureInfo(assignedRaceId, readCreatureInfo(msg))
         monsters[assignedRaceId] = charmId
       end
     else
@@ -73,8 +104,8 @@ local function parseCharmData(msg)
   msg:getU8()
   local finishedCount = msg:getU16()
   for i = 1, finishedCount do
-    msg:getU16()
-    readCreatureInfo(msg)
+    local raceId = msg:getU16()
+    cacheCreatureInfo(raceId, readCreatureInfo(msg))
   end
 
   local player = g_game.getLocalPlayer()
@@ -113,7 +144,7 @@ local function parseBestiaryOverview(msg)
     local progress = 0
     if progressMarker > 0 then
       progress = msg:getU8()
-      readCreatureInfo(msg)
+      cacheCreatureInfo(raceId, readCreatureInfo(msg))
     end
     monsters[#monsters + 1] = { raceId, progress + 1, 0 }
   end
@@ -123,7 +154,7 @@ end
 local function parseBestiaryMonster(msg)
   local raceId = msg:getU16()
   msg:getString() -- class
-  readCreatureInfo(msg)
+  cacheCreatureInfo(raceId, readCreatureInfo(msg))
   local currentLevel = msg:getU8()
   local killCounter = msg:getU32()
   local firstUnlock = msg:getU16()
@@ -195,11 +226,13 @@ local function parseTracker(msg)
   local count = msg:getU8()
   for i = 1, count do
     local raceId = msg:getU16()
-    readCreatureInfo(msg)
+    cacheCreatureInfo(raceId, readCreatureInfo(msg))
     local kills = msg:getU32()
-    local toKill = msg:getU16()
+    local firstUnlock = msg:getU16()
+    local secondUnlock = msg:getU16()
+    local thirdUnlock = msg:getU16()
     local progress = msg:getU8()
-    tracker[#tracker + 1] = { raceId, kills, toKill, progress }
+    tracker[#tracker + 1] = { raceId, kills, firstUnlock, secondUnlock, thirdUnlock, progress }
   end
   signalcall(g_game.onMonsterTrackerData, 0, tracker)
 end

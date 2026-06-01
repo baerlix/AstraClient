@@ -391,7 +391,7 @@ function resetButtonCache(button)
 	end
 
 	if button.item then
-		button.item:setItemId(0)
+		button.item:setItem(nil)
 		button.item:setOn(false)
 		button.item:setChecked(false)
 		button.item:setDraggable(false)
@@ -816,6 +816,7 @@ function updateButton(button)
 		button.cache.itemId = button.item:getItemId()
 		button.cache.smartMode = buttonData["actionsetting"]["useEquipSmartMode"]
 		button.cache.upgradeTier = buttonData["actionsetting"]["upgradeTier"]
+		button.item:setTier(button.cache.upgradeTier or 0)
 		button.cache.actionType = UseTypes[buttonData["actionsetting"]["useType"]]
 		updateButtonState(button)
 	end

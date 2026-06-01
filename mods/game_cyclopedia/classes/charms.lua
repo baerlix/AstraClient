@@ -89,7 +89,7 @@ function Charm:configureWidget(charm, charmList)
 
     local raceId = charm.creatureId
     if raceId ~= 0 then
-        local monster = g_things.getMonsterList()[raceId]
+        local monster = getCyclopediaMonster(raceId)
         charmItem:recursiveGetChildById('creature'):setOutfit({type = monster[2], auxType = monster[3], head = monster[4], body = monster[5], legs = monster[6], feet = monster[7], addons = monster[8]})
     end
     return charmItem
@@ -496,7 +496,7 @@ function Charm:onMonsterFocusChange(widget, focused)
     local creatureWidget = VisibleCyclopediaPanel:recursiveGetChildById('creature')
     local raceId = tonumber(widget:getId())
     self.raceId = raceId
-    local monster = g_things.getMonsterList()[raceId]
+    local monster = getCyclopediaMonster(raceId)
     creatureWidget:setOutfit({type = monster[2], auxType = monster[3], head = monster[4], body = monster[5], legs = monster[6], feet = monster[7], addons = monster[8]})
 
     local selectCreatureButton = VisibleCyclopediaPanel:recursiveGetChildById('selectCreatureButton')

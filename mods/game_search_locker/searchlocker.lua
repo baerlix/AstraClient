@@ -112,7 +112,7 @@ function onCloseSearchLocker()
     titemList = {}
     searchlocker:recursiveGetChildById("headerContentPanel"):destroyChildren()
     searchlocker:recursiveGetChildById("itemListAll"):destroyChildren()
-    searchlocker:recursiveGetChildById("selectedItem"):setItemId(0)
+    searchlocker:recursiveGetChildById("selectedItem"):setItem(nil)
     onClearHandFilter()
     hideSearch()
 end
@@ -432,7 +432,7 @@ function onSelectChildCategory(widget, selected, resetFilter)
         end
     end
 
-    searchlocker:recursiveGetChildById("selectedItem"):setItemId(0)
+    searchlocker:recursiveGetChildById("selectedItem"):setItem(nil)
     itemList.onChildFocusChange = function(self, selected)
         onSelectChildItem(self, selected)
     end

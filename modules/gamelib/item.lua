@@ -6,6 +6,27 @@ function Item:inCorpse()
 	return self.isInCorpse
 end
 
+Item.getAverageMarketValue = Item.getAverageMarketValue or function(self)
+    return 0
+end
+
+Item.isAmmo = Item.isAmmo or function(self)
+    local itemType = g_things.getItemType(self:getId())
+    return itemType and itemType:getCategory() == 4 or false
+end
+
+Item.hasExpireStop = Item.hasExpireStop or function(self)
+    return false
+end
+
+Item.hasWearout = Item.hasWearout or function(self)
+    return false
+end
+
+Item.hasCharges = Item.hasCharges or function(self)
+    return self:getSubType() > 0
+end
+
 function getItemServerName(itemId)
     local thing = g_things.getThingType(itemId, ThingCategoryItem)
     if not thing then

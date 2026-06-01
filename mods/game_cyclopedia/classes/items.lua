@@ -232,7 +232,7 @@ function CyclopediaItems.categoryListChildFocus(self, selected)
 		VisibleCyclopediaPanel.leftInfo.itemList:destroyChildren()
 	end
 
-	VisibleCyclopediaPanel.leftInfo.imageWidget.itemImage:setItemId(0)
+	VisibleCyclopediaPanel.leftInfo.imageWidget.itemImage:setItem(nil)
 
 	if #VisibleCyclopediaPanel.leftInfo.searchText:getText() > 0 then
 		VisibleCyclopediaPanel.leftInfo.searchText:clearText()
@@ -606,7 +606,7 @@ end
 function CyclopediaItems.showSearchResult(list)
 	VisibleCyclopediaPanel.leftInfo.classOptions:setCurrentIndex(1)
 	VisibleCyclopediaPanel.leftInfo.itemList:destroyChildren()
-	VisibleCyclopediaPanel.leftInfo.imageWidget.itemImage:setItemId(0)
+	VisibleCyclopediaPanel.leftInfo.imageWidget.itemImage:setItem(nil)
 	VisibleCyclopediaPanel.leftInfo.oneHandButton:setEnabled(true)
 	VisibleCyclopediaPanel.leftInfo.twoHandButton:setEnabled(true)
 	sortButtons["classOptions"] = -1

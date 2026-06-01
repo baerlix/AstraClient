@@ -168,6 +168,7 @@ private:
     void parseCoinBalanceUpdate(const InputMessagePtr& msg);
     void parseBlessings(const InputMessagePtr& msg);
     void parseUnjustifiedStats(const InputMessagePtr& msg);
+    void parseCustomUnjustifiedStats(const InputMessagePtr& msg);
     void parsePvpSituations(const InputMessagePtr& msg);
     void parsePreset(const InputMessagePtr& msg);
     void parseCreatureType(const InputMessagePtr& msg);

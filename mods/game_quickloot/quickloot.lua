@@ -19,6 +19,13 @@ allContainers = {}
 obtainContainers = {}
 lootData = {}
 
+local function createContainerItem(itemId)
+  if not itemId or itemId == 0 then
+    return nil
+  end
+  return Item.create(itemId, 1)
+end
+
 local cache = {
   listMin = 0,
   listMax = 0,
@@ -125,8 +132,8 @@ function init()
         addEvent(refreshList, 500)
       end
 
-      widget:getChildById('containerId'):setItem(Item.create(allContainers[i] or 0, 1))
-      widget:getChildById('obtainContainerId'):setItem(Item.create(obtainContainers[i] or 0, 1))
+      widget:getChildById('containerId'):setItem(createContainerItem(allContainers[i]))
+      widget:getChildById('obtainContainerId'):setItem(createContainerItem(obtainContainers[i]))
     end
   end
 
@@ -166,8 +173,8 @@ local function refreshList()
     if getObjectCategoryName(i) ~= '' then
       local widget = quickLootContainersPanel:getChildById(i)
       if widget then
-        widget:getChildById('containerId'):setItem(Item.create(allContainers[i] or 0, 1))
-        widget:getChildById('obtainContainerId'):setItem(Item.create(obtainContainers[i] or 0, 1))
+        widget:getChildById('containerId'):setItem(createContainerItem(allContainers[i]))
+        widget:getChildById('obtainContainerId'):setItem(createContainerItem(obtainContainers[i]))
       end
     end
   end

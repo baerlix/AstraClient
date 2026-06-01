@@ -63,8 +63,10 @@ end
 function refreshContainerItems(container)
   for slot=0,container:getCapacity()-1 do
     local itemWidget = container.itemsPanel:getChildById('item' .. slot)
-    itemWidget:setItem(container:getItem(slot))
-    updateFlags(container:getItem(slot), itemWidget)
+    local item = container:getItem(slot)
+    itemWidget:setItem(item)
+    ItemsDatabase.setTier(itemWidget, item)
+    updateFlags(item, itemWidget)
   end
 
   if container:hasPages() then
@@ -168,7 +170,7 @@ function onContainerOpen(container, previousContainer)
     if containerPanel:getChildByPos(mousePos) then
       return false
     end
-    local child = containerPanel:getNearestChild(mousePos)
+    local child = containerPanel.getNearestChild and containerPanel:getNearestChild(mousePos) or containerPanel:getChildByIndex(-1)
     if child then
       child:onDrop(widget, mousePos, true)
     end
@@ -250,6 +252,7 @@ function onContainerOpen(container, previousContainer)
     local itemSlot = container:getItem(slot)
 
     itemWidget:setItem(itemSlot)
+    ItemsDatabase.setTier(itemWidget, itemSlot)
     itemWidget:setMargin(0)
     itemWidget.position = container:getSlotPosition(slot)
     updateFlags(itemSlot, itemWidget)
@@ -329,6 +332,7 @@ function onContainerUpdateItem(container, slot, item, oldItem)
   if not container.window then return end
   local itemWidget = container.itemsPanel:getChildById('item' .. slot)
   itemWidget:setItem(item)
+  ItemsDatabase.setTier(itemWidget, item)
   if itemWidget then
     updateFlags(item, itemWidget)
   end

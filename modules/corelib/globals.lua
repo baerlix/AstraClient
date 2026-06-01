@@ -7,6 +7,16 @@ if UIWidget then
   UIWidget.removeLuaCall = UIWidget.removeLuaCall or function(self, name) return self end
   UIWidget.setClickSound = UIWidget.setClickSound or function(self, sound) return self end
   UIWidget.addSound = UIWidget.addSound or function(self, soundType, sound) return self end
+  UIWidget.setHTML = UIWidget.setHTML or function(self, html)
+    if self.setText then
+      local text = tostring(html or '')
+      text = text:gsub('<br%s*/?>', '\n')
+      text = text:gsub('</p>', '\n')
+      text = text:gsub('<[^>]->', '')
+      self:setText(text)
+    end
+    return self
+  end
   UIWidget.setActionId = UIWidget.setActionId or function(self, actionId)
     self.actionId = actionId
     return self
@@ -176,13 +186,7 @@ ThingCategoryEffect = ThingCategoryEffect or 3
 local function noop() end
 
 do
-  local defaultClientVersion = 1510
-  if g_game and g_game.getSupportedClients then
-    local clients = g_game.getSupportedClients()
-    if clients and #clients > 0 then
-      defaultClientVersion = tonumber(clients[#clients]) or defaultClientVersion
-    end
-  end
+  local defaultClientVersion = 860
   GameInfo = GameInfo or {}
   GameInfo.version = GameInfo.version or defaultClientVersion
   GameInfo.strVersion = GameInfo.strVersion or tostring(GameInfo.version)

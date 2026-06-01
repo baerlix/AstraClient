@@ -39,7 +39,7 @@ function show(itemWidget)
     destroy()
   end
   local clearFunc = function()
-    window.item:setItemId(0)
+    window.item:setItem(nil)
     window.item:setItemCount(0)
     doneFunc()
   end

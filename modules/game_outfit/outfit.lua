@@ -1120,7 +1120,14 @@ end
 
 function saveSettings()
   local player = g_game.getLocalPlayer()
-  local folder = "/characterdata/".. player:getId() .."/outfitdialog.json"
+  local characterDataFolder = "/characterdata/".. player:getId() .."/"
+  if not g_resources.directoryExists("/characterdata/") then
+    g_resources.makeDir("/characterdata/")
+  end
+  if not g_resources.directoryExists(characterDataFolder) then
+    g_resources.makeDir(characterDataFolder)
+  end
+  local folder = characterDataFolder .. "outfitdialog.json"
 	local status, result = pcall(function() return json.encode(presetList, 2) end)
 	if not status then
 		return onError("Error while saving outfits profile settings. Data won't be saved. Details: " .. result)

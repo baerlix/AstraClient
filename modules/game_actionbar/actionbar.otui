@@ -52,6 +52,19 @@ ActionButton < UIButton
         image-source: /images/ui/ditherpattern
         visible: false
 
+    UIWidget
+      id: tier
+      size: 9 8
+      image-source: /images/game/items/tiers-strip
+      image-clip: 0 0 9 8
+      image-size: 9 8
+      anchors.top: parent.top
+      anchors.right: parent.right
+      phantom: true
+      focusable: false
+      visible: false
+      image-smooth: true
+
   Label
     id: hotkeyLabel
     anchors.top: parent.top

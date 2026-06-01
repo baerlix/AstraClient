@@ -178,6 +178,7 @@ function math.format(integer)
 end
 
 function short_text(text, chars_limit)
+  text = tostring(text or '')
   if #text > chars_limit then
     local newstring = ''
     for char in (text):gmatch(".") do
@@ -442,6 +443,10 @@ function formatMoney(amount, separator)
     end
   end
   return formatted
+end
+
+function tokformat(amount)
+  return math.floor(tonumber(amount) or 0)
 end
 
 function matchText(input, target)

@@ -159,7 +159,7 @@ public:
     bool inCorpse() override;
     bool isQuiver();
     int getWeaponType();
-    int getClassification() { return getWeaponType(); }
+    int getClassification() { const int classification = Thing::getClassification(); return classification > 0 ? classification : getWeaponType(); }
 
     ItemPtr clone();
     ItemPtr asItem() { return static_self_cast<Item>(); }

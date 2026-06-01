@@ -20,6 +20,17 @@ local sortTypes = {
 	DESCENDING = 5
 }
 
+local function getMonsterList()
+	if modules.game_cyclopedia and modules.game_cyclopedia.getCyclopediaMonsterList then
+		return modules.game_cyclopedia.getCyclopediaMonsterList()
+	end
+	return g_things.getMonsterList()
+end
+
+local function getMonster(data, monsterList)
+	return monsterList[data[1]]
+end
+
 function BestiaryTracker.initSortFields()
 	sortOptions[sortTypes.NAME] = true
 	sortOptions[sortTypes.COMPLETATION] = false
@@ -69,7 +80,7 @@ function BestiaryTracker.updateWidgetTracker(data, widget)
 end
 
 function BestiaryTracker.updateWidgetShowTracker(data, monsterList)
-	local creature = monsterList[data[1]]
+	local creature = getMonster(data, monsterList)
 	if not creature then
 		g_logger.warning("[BestiaryTracker]: failed to get outfit for Race " .. data[1])
 		return false
@@ -134,10 +145,12 @@ function BestiaryTracker.updateWidgetShowTracker(data, monsterList)
 end
 
 function BestiaryTracker.updateTrackerList()
-	local monsterList = g_things.getMonsterList()
+	local monsterList = getMonsterList()
 	table.sort(BestiaryTrackerList, function(a, b)
-		local nameA = monsterList[a[1]][1]
-		local nameB = monsterList[b[1]][1]
+		local creatureA = getMonster(a, monsterList)
+		local creatureB = getMonster(b, monsterList)
+		local nameA = creatureA and creatureA[1] or tostring(a[1])
+		local nameB = creatureB and creatureB[1] or tostring(b[1])
 		local completionA = (a[5] - a[2])
 		local completionB = (b[5] - b[2])
     	local percentA = (a[2] / a[5]) * 100
@@ -192,10 +205,12 @@ function BestiaryTracker.showTrackerData(update)
 		return
 	end
 
-	local monsterList = g_things.getMonsterList()
+	local monsterList = getMonsterList()
 	table.sort(BestiaryTrackerList, function(a, b)
-		local nameA = monsterList[a[1]][1]
-		local nameB = monsterList[b[1]][1]
+		local creatureA = getMonster(a, monsterList)
+		local creatureB = getMonster(b, monsterList)
+		local nameA = creatureA and creatureA[1] or tostring(a[1])
+		local nameB = creatureB and creatureB[1] or tostring(b[1])
 		local completionA = (a[5] - a[2])
 		local completionB = (b[5] - b[2])
     	local percentA = (a[2] / a[5]) * 100

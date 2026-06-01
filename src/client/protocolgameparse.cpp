@@ -83,6 +83,9 @@ void ProtocolGame::parseMessage(const InputMessagePtr& msg)
                 msg->setReadPos(readPos); // restore read pos
 
             switch (opcode) {
+            case Proto::GameServerCustomUnjustifiedStats:
+                parseCustomUnjustifiedStats(msg);
+                break;
             case Proto::GameServerLoginOrPendingState:
                 if (g_game.getFeature(Otc::GameLoginPending))
                     parsePendingGame(msg);
@@ -975,6 +978,22 @@ void ProtocolGame::parseUnjustifiedStats(const InputMessagePtr& msg)
     unjustifiedPoints.skullTime = msg->getU8();
 
     g_game.setUnjustifiedPoints(unjustifiedPoints);
+}
+
+void ProtocolGame::parseCustomUnjustifiedStats(const InputMessagePtr& msg)
+{
+    UnjustifiedPoints unjustifiedPoints;
+    unjustifiedPoints.killsDay = msg->getU8();
+    unjustifiedPoints.killsDayRemaining = msg->getU8();
+    unjustifiedPoints.killsWeek = msg->getU8();
+    unjustifiedPoints.killsWeekRemaining = msg->getU8();
+    unjustifiedPoints.killsMonth = msg->getU8();
+    unjustifiedPoints.killsMonthRemaining = msg->getU8();
+    unjustifiedPoints.skullTime = msg->getU32();
+
+    g_game.setUnjustifiedPoints(unjustifiedPoints);
+    g_game.setOpenPvpSituations(msg->getU8());
+    msg->getU8(); // skull is already updated by normal creature packets
 }
 
 void ProtocolGame::parsePvpSituations(const InputMessagePtr& msg)

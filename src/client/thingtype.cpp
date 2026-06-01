@@ -47,6 +47,7 @@ ThingType::ThingType()
     m_animationPhases = 0;
     m_layers = 0;
     m_elevation = 0;
+    m_upgradeClassification = 0;
     m_opacity = 1.0f;
 }
 
@@ -490,6 +491,8 @@ void ThingType::unserializeOtml(const OTMLNodePtr& node)
             m_attribs.set(ThingAttrNotPreWalkable, node2->value<bool>());
         else if(node2->tag() == "image")
             m_customImage = node2->value();
+        else if(node2->tag() == "classification")
+            m_upgradeClassification = node2->value<uint16>();
         else if(node2->tag() == "full-ground") {
             if(node2->value<bool>())
                 m_attribs.set(ThingAttrFullGround, true);

@@ -11,7 +11,7 @@ function HTTP.get(url, callback)
   if not g_http or not g_http.get then
     return error("HTTP.get is not supported")
   end
-  local operation = g_http.get(url, HTTP.timeout)
+  local operation = g_http.get(url, HTTP.timeout, {})
   HTTP.operations[operation] = {type="get", url=url, callback=callback}
   return operation
 end
@@ -20,7 +20,7 @@ function HTTP.getJSON(url, callback)
   if not g_http or not g_http.get then
     return error("HTTP.getJSON is not supported")
   end
-  local operation = g_http.get(url, HTTP.timeout)
+  local operation = g_http.get(url, HTTP.timeout, {})
   HTTP.operations[operation] = {type="get", json=true, url=url, callback=callback}
   return operation
 end
@@ -32,7 +32,7 @@ function HTTP.post(url, data, callback)
   if type(data) == "table" then
     data = json.encode(data)
   end
-  local operation = g_http.post(url, data, HTTP.timeout)
+  local operation = g_http.post(url, data, HTTP.timeout, {})
   HTTP.operations[operation] = {type="post", url=url, callback=callback}
   return operation
 end
@@ -44,7 +44,7 @@ function HTTP.postJSON(url, data, callback)
   if type(data) == "table" then
     data = json.encode(data)
   end
-  local operation = g_http.post(url, data, HTTP.timeout, true)
+  local operation = g_http.post(url, data, HTTP.timeout, {["Content-Type"]="application/json"})
   HTTP.operations[operation] = {type="post", json=true, url=url, callback=callback}
   return operation
 end
@@ -53,7 +53,7 @@ function HTTP.download(url, file, callback, progressCallback)
   if not g_http or not g_http.download then
     return error("HTTP.download is not supported")
   end
-  local operation = g_http.download(url, file, "", HTTP.timeout)
+  local operation = g_http.download(url, file, HTTP.timeout, {})
   HTTP.operations[operation] = {type="download", url=url, file=file, callback=callback, progressCallback=progressCallback}
   return operation
 end
@@ -70,7 +70,7 @@ function HTTP.downloadImage(url, callback)
   end
   local file = "autoimage_" .. HTTP.imageId .. ".png"
   HTTP.imageId = HTTP.imageId + 1
-  local operation = g_http.download(url, file, "", HTTP.timeout)
+  local operation = g_http.download(url, file, HTTP.timeout, {})
   HTTP.operations[operation] = {type="image", url=url, file=file, callback=callback}
   return operation
 end
@@ -87,17 +87,15 @@ function HTTP.downloadConditionalImage(url, data, callback)
     return
   end
 
+  local imageId = type(data) == "table" and data["id"] or nil
   local file = "autoimage_" .. HTTP.imageId .. ".png"
-  if data["id"] then
-    file = "autoimage_" .. data["id"] .. ".png"
+  if imageId then
+    file = "autoimage_" .. imageId .. ".png"
   end
 
-  if type(data) == "table" then
-    data = json.encode(data)
-  end
   HTTP.imageId = HTTP.imageId + 1
-  local operation = g_http.download(url, file, data, HTTP.timeout)
-  HTTP.operations[operation] = {type="image", imageid=data.id, url=url, file=file, callback=callback}
+  local operation = g_http.download(url, file, HTTP.timeout, {})
+  HTTP.operations[operation] = {type="image", imageid=imageId, url=url, file=file, callback=callback}
   return operation
 end
 

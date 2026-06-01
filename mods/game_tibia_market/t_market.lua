@@ -69,6 +69,10 @@ function init()
   mainMarket = marketWindow.contentPanel.mainMarket
   marketWindow.contentPanel.lockerOnly.onCheckChange = function(self, checked) toggleShowLockerOnly(self, checked) end
 
+  if initMarketProtocol then
+    initMarketProtocol()
+  end
+
   hide()
   mainMarket.createOfferSell:setChecked(true)
   connect(g_game, {
@@ -84,9 +88,6 @@ function init()
 	onCoinBalance = onCoinBalance,
   })
 
-  if initMarketProtocol then
-    initMarketProtocol()
-  end
 end
 
 function terminate()
@@ -129,6 +130,7 @@ function toggle()
 end
 
 function hide()
+	local wasVisible = marketWindow:isVisible()
 	local benchmark = g_clock.millis()
 	local mainMarket = marketWindow.contentPanel:getChildById('mainMarket')
 	local detailsMarket = marketWindow.contentPanel:getChildById('detailsMarket')
@@ -144,9 +146,11 @@ function hide()
 	g_client.setInputLockWidget(nil)
 	onClearSearch()
 
-	g_game.doThing(false)
-	g_game.sendMarketLeave()
-	g_game.doThing(true)
+	if wasVisible then
+		g_game.doThing(false)
+		g_game.sendMarketLeave()
+		g_game.doThing(true)
+	end
   	lastSelectedItem = {}
 	modules.game_console.getConsole():focus()
 	consoleln("Market loaded in " .. (g_clock.millis() - benchmark) / 1000 .. " seconds.")
@@ -373,7 +377,7 @@ function configureList()
 
 	categoryList = {}
 	for k, v in pairs(g_things.getMarketCategories()) do
-		table.insert(categoryList, {k, v})
+		table.insert(categoryList, {k, tostring(v)})
 	end
 
 	table.insert(categoryList, {MarketCategory.WeaponsAll, "Weapons: All"})
@@ -483,7 +487,7 @@ function onMarketBrowse(itemID, tier, buyList, sellList)
 		widget.name:setText(short_text(data.holder, 15))
 		widget.amount:setText(data.amount)
 		widget.endAt:setText(os.date("%Y-%m-%d, %H:%M:%S", data.timestamp))
-		widget:setIgnoreEqualFocus(true)
+		if widget.setIgnoreEqualFocus then widget:setIgnoreEqualFocus(true) end
 
 		if #holder >= 15 then
 			widget.name:setTooltip(data.holder)
@@ -536,7 +540,7 @@ function onMarketBrowse(itemID, tier, buyList, sellList)
 		widget.name:setText(short_text(data.holder, 15))
 		widget.amount:setText(data.amount)
 		widget.endAt:setText(os.date("%Y-%m-%d, %H:%M:%S", data.timestamp))
-		widget:setIgnoreEqualFocus(true)
+		if widget.setIgnoreEqualFocus then widget:setIgnoreEqualFocus(true) end
 
 		local totalPrice = data.price * data.amount
 		local unitPrice = data.price
@@ -664,7 +668,7 @@ function onSellListValueChange(scroll, value, delta)
 		widget.name:setText(short_text(data.holder, 15))
 		widget.amount:setText(data.amount)
 		widget.endAt:setText(os.date("%Y-%m-%d, %H:%M:%S", data.timestamp))
-		widget:setIgnoreEqualFocus(true)
+		if widget.setIgnoreEqualFocus then widget:setIgnoreEqualFocus(true) end
 
 		local totalPrice = data.price * data.amount
 		local unitPrice = data.price
@@ -827,7 +831,7 @@ function onSelectChildCategory(widget, selected, keepFilter)
 		end
 	end
 
-	marketWindow.contentPanel.selectedItem:setItemId(0)
+	marketWindow.contentPanel.selectedItem:setItem(nil)
 	itemList.onChildFocusChange = function(self, selected, oldFocus) onSelectChildItem(self, selected, oldFocus) end
 
 	local tier = sortButtons["tierFilter"] or 0
@@ -852,7 +856,7 @@ function onSelectChildCategory(widget, selected, keepFilter)
 		end
 
 		local widget = g_ui.createWidget('MarketItemList', itemList)
-		widget:setIgnoreEqualFocus(true)
+		if widget.setIgnoreEqualFocus then widget:setIgnoreEqualFocus(true) end
 		widget.item:setItemId(itemInfo.thingType:getId())
 
 		widget.name:setText(itemInfo.marketData.name)
@@ -926,7 +930,7 @@ function onUpdateChildItem(itemID, tier)
 end
 
 function onSelectChildItem(widget, selected, oldFocus)
-	if not selected then return end
+	if not selected or not selected.item then return end
 
 	if oldFocus then
 		oldFocus:setBackgroundColor('#404040')
@@ -936,9 +940,12 @@ function onSelectChildItem(widget, selected, oldFocus)
 		lastSelectedItem.lastWidget:setBackgroundColor('#404040')
 	end
 
+	local item = selected.item:getItem()
+	if not item then return end
+
 	selected:setBackgroundColor('#585858')
 	local itemID = selected.item:getItemId()
-	local itemTier = selected.item:getItem():getTier()
+	local itemTier = item:getTier()
 	if lastSelectedItem.itemId == itemID and lastSelectedItem.tier == itemTier then
 		return true
 	end
@@ -946,7 +953,7 @@ function onSelectChildItem(widget, selected, oldFocus)
 	marketWindow.contentPanel.selectedItem:setItemId(itemID)
 	marketWindow.contentPanel.selectedItem:setTier(itemTier)
 
-	lastSelectedItem = {itemId = itemID, tier = itemTier, lastWidget = widget}
+	lastSelectedItem = {itemId = itemID, tier = itemTier, lastWidget = selected}
 
 	if itemID == 22118 then
 		marketWindow.contentPanel.selectedItem:getItem():setCount(g_game.getTransferableTibiaCoins())
@@ -954,7 +961,7 @@ function onSelectChildItem(widget, selected, oldFocus)
 		marketWindow.contentPanel.selectedItem:getItem():setCount(getDepotItemCount(itemID, itemTier))
 	end
 	onClearMainMarket(false)
-	g_game.sendMarketAction(3, itemID, selected.item:getItem():getTier())
+	g_game.sendMarketAction(3, itemID, itemTier)
 end
 
 function onClearMainMarket(cleanList)
@@ -978,7 +985,7 @@ function onClearMainMarket(cleanList)
 	if cleanList then
 		updateSellCount(nil, 0)
 		updateBuyCount(nil, 0)
-		marketWindow.contentPanel.selectedItem:setItemId(0)
+		marketWindow.contentPanel.selectedItem:setItem(nil)
 		marketWindow.contentPanel.itemList:destroyChildren()
 	end
 
@@ -1449,7 +1456,7 @@ function onSearchItem(textField)
 	onClearMainMarket(true)
 
 	marketWindow.contentPanel.mainMarket.getPotionsButton:setVisible(false)
-	marketWindow.contentPanel.selectedItem:setItemId(0)
+	marketWindow.contentPanel.selectedItem:setItem(nil)
 
 	itemList.onChildFocusChange = function(self, selected, oldFocus) onSelectChildItem(self, selected, oldFocus) end
 
@@ -1500,7 +1507,7 @@ function onSearchItem(textField)
 		end
 
 		local widget = g_ui.createWidget('MarketItemList', itemList)
-		widget:setIgnoreEqualFocus(true)
+		if widget.setIgnoreEqualFocus then widget:setIgnoreEqualFocus(true) end
 		widget.item:setItemId(itemInfo.thingType:getId())
 
 		widget.name:setText(itemInfo.marketData.name)
@@ -1575,7 +1582,7 @@ function onShowRedirect(item)
 	onClearMainMarket(true)
 
 	marketWindow.contentPanel.mainMarket.getPotionsButton:setVisible(false)
-	marketWindow.contentPanel.selectedItem:setItemId(0)
+	marketWindow.contentPanel.selectedItem:setItem(nil)
 
 	itemList.onChildFocusChange = function(self, selected, oldFocus) onSelectChildItem(self, selected, oldFocus) end
 
@@ -1626,7 +1633,7 @@ function onShowRedirect(item)
 		end
 
 		local widget = g_ui.createWidget('MarketItemList', itemList)
-		widget:setIgnoreEqualFocus(true)
+		if widget.setIgnoreEqualFocus then widget:setIgnoreEqualFocus(true) end
 		widget.item:setItemId(itemInfo.thingType:getId())
 
 		widget.name:setText(itemInfo.marketData.name)

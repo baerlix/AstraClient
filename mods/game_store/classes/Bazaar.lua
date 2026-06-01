@@ -308,7 +308,7 @@ function Bazaar:deleteItemArgument(selectedSlotItem)
 	if item then
 		item:setTier(0)
 		item:setItemCount(0)
-		item:setItemId(0)
+		item:setItem(nil)
 		item:setImageSource('/images/store/bazaar-add-item')
 		item:setImageClip('0 0 34 34')
 		item.onClick = function() Bazaar:openItemArgument(selectedSlotItem) end

@@ -243,6 +243,7 @@ public:
     int getMinimapColor() { return m_attribs.get<uint16>(ThingAttrMinimapColor); }
     int getLensHelp() { return m_attribs.get<uint16>(ThingAttrLensHelp); }
     int getClothSlot() { return m_attribs.get<uint16>(ThingAttrCloth); }
+    uint16 getClassification() { return m_upgradeClassification; }
     MarketData getMarketData() { return m_attribs.get<MarketData>(ThingAttrMarket); }
     int getWeaponType();
     bool isGround() { return m_attribs.has(ThingAttrGround); }
@@ -317,6 +318,7 @@ private:
     int m_numPatternX, m_numPatternY, m_numPatternZ;
     int m_layers;
     int m_elevation;
+    uint16 m_upgradeClassification;
     float m_opacity;
     std::string m_customImage;
 

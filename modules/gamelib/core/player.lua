@@ -39,7 +39,12 @@ function LocalPlayer:isPoisioned() return self:hasCondition(PlayerStates.Poison)
 function LocalPlayer:isBurning() return self:hasCondition(PlayerStates.Burn) end
 function LocalPlayer:isEnergized() return self:hasCondition(PlayerStates.Energy) end
 function LocalPlayer:isDrunk() return self:hasCondition(PlayerStates.Drunk) end
-function LocalPlayer:hasManaShield() return self:hasCondition(PlayerStates.ManaShield) end
+function LocalPlayer:hasManaShield() return self:hasCondition(PlayerStates.ManaShield) or self:hasCondition(PlayerStates.NewMagicShield) end
+function LocalPlayer:useMagicShield() return self:hasManaShield() end
+function LocalPlayer:getMagicShield() return self:getMana() end
+function LocalPlayer:getMaxMagicShield() return self:getMaxMana() end
+function LocalPlayer:getHarmony() return 0 end
+function LocalPlayer:isSerenity() return false end
 function LocalPlayer:isParalyzed() return self:hasCondition(PlayerStates.Paralyze) end
 function LocalPlayer:hasHaste() return self:hasCondition(PlayerStates.Haste) end
 function LocalPlayer:hasSwords() return self:hasCondition(PlayerStates.Swords) end
@@ -90,7 +95,7 @@ end
 
 hasManaShield = function()
   local localPlayer = g_game.getLocalPlayer()
-  return localPlayer and localPlayer:hasCondition(PlayerStates.ManaShield) or false
+  return localPlayer and localPlayer:hasManaShield() or false
 end
 
 isParalyzed = function()

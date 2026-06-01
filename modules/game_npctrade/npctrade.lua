@@ -263,7 +263,7 @@ function hide()
 end
 
 function onItemBoxChecked(widget)
-  itemButton:setItemId(0)
+  itemButton:setItem(nil)
   quantityScroll:setValue(0)
   if widget:isChecked() then
     local item = widget.item
@@ -591,6 +591,7 @@ function refreshTradeItems()
 
     local itemWidget = itemBox:getChildById('item')
     itemWidget:setItem(item.ptr)
+    ItemsDatabase.setTier(itemWidget, item.ptr)
     itemBox.onMouseRelease = itemPopup
 
     if (string.len(item.name) > 15) or (string.len(informationText) > 16) then
@@ -742,9 +743,12 @@ function onCloseNpcTrade()
   addEvent(hide)
 end
 
-function onPlayerGoods(items)
+function onPlayerGoods(money, items)
+  playerMoney = tonumber(money) or 0
   playerItems = {}
-  for id, amount in pairs(items) do
+  for _, item in pairs(items or {}) do
+    local id = item[1]:getId()
+    local amount = item[2]
     if not playerItems[id] then
       playerItems[id] = amount
     else
@@ -878,20 +882,7 @@ function sellAll(delayed, exceptions)
 end
 
 function getPlayerMoney()
-  local player = g_game.getLocalPlayer()
-  if not player or not player.getResourceValue then
-    playerMoney = 0
-    return
-  end
-  
-  playerMoney = player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary)
-  if CURRENCYID ~= GOLD_COINS and CURRENCYID > 0 then
-    playerMoney = player:getResourceValue(ResourceNpcTrade)
-  elseif CURRENCYID == 0 then
-    playerMoney = player:getResourceValue(ResourceNpcStorageTrade)
-  end
-
-  return playerMoney
+  return playerMoney or 0
 end
 
 function onAmountEdit(self)

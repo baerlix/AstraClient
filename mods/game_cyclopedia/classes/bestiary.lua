@@ -203,7 +203,7 @@ function Bestiary.bestiaryOverview()
     local monsterId = MonsterList[i][1]
     local currentLevel = MonsterList[i][2]
     local extraExperience = MonsterList[i][3]
-    local monster = g_things.getMonsterList()[monsterId]
+    local monster = getCyclopediaMonster(monsterId)
     if not monster then
       g_logger.error("Bestiary Overview: failed to retrieve data from monster " .. monsterId)
       goto continue
@@ -254,7 +254,7 @@ function Cyclopedia.bestiaryMonsterData(monsterId, bestiaryMonster, currentLevel
 
   VisibleCyclopediaPanel.backButton.onClick = function() Bestiary.bestiaryOverview() end
 
-  local monster = g_things.getMonsterList()[monsterId]
+  local monster = getCyclopediaMonster(monsterId)
   local widget = VisibleCyclopediaPanel.listOfMonsters
 
   widget:setText(monster[1])
@@ -712,7 +712,7 @@ function Bestiary.onSearch()
   local text = widget:getText():lower()
 
   local list = {}
-  for raceId, monsterInfo in pairs(g_things.getMonsterList()) do
+  for raceId, monsterInfo in pairs(getCyclopediaMonsterList()) do
     local name = monsterInfo[1]:lower()
     if string.find(name, string.escape(text)) then
       list[#list + 1] = raceId
@@ -861,7 +861,7 @@ function Bestiary.onCharm()
 
       local data = charmOptions:getCurrentOption()
 
-      local monster = g_things.getMonsterList()[MonsterId]
+      local monster = getCyclopediaMonster(MonsterId)
       selectAssignButton.onClick = function()
         local data = charmOptions:getCurrentOption()
         Bestiary.onApplyCharm(monster[1], data.data, MonsterId)
@@ -899,7 +899,7 @@ function Bestiary.onCharm()
     local coinCostPanel = VisibleCyclopediaPanel:recursiveGetChildById('coinCostPanel')
     coinCostPanel:setVisible(true)
 
-    local monster = g_things.getMonsterList()[MonsterId]
+    local monster = getCyclopediaMonster(MonsterId)
     selectClearButton.onClick = function()
       Bestiary.onRemoveCharm(monster[1], currentCharm, MonsterId)
     end

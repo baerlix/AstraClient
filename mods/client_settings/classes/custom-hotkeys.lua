@@ -294,7 +294,7 @@ function CustomHotkeys.assignSpellButton(button, param)
   widget.action:setText(param)
   widget.words = param
   widget.action:setMarginLeft(-15)
-  widget.item:setItemId(0)
+  widget.item:setItem(nil)
   widget.item:setVisible(false)
   widget.action:setColor("#dfdfdf")
 
@@ -664,7 +664,7 @@ function CustomHotkeys.assignTextButton(button, text, autoSay)
     widget.words = text
     widget.action:setText(text)
     widget.action:setMarginLeft(-15)
-    widget.item:setItemId(0)
+    widget.item:setItem(nil)
     widget.item:setVisible(false)
     widget.action:setColor("#dfdfdf")
 

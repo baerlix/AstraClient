@@ -52,7 +52,7 @@ struct UnjustifiedPoints {
     uint8 killsWeekRemaining;
     uint8 killsMonth;
     uint8 killsMonthRemaining;
-    uint8 skullTime;
+    uint32 skullTime;
 };
 
 typedef std::tuple<std::string, uint, std::string, int, bool> Vip;

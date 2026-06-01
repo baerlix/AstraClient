@@ -59,7 +59,10 @@ namespace Proto {
         GameServerSupplyStash               = 41,
         GameServerSpecialContainer          = 42,
 
-        // all in game opcodes must be greater than 50
+        // Astra 8.60 custom packets sent before the regular game opcode range.
+        GameServerCustomUnjustifiedStats    = 47,
+
+        // all regular in game opcodes must be greater than 50
         GameServerFirstGameOpcode           = 50,
 
         // otclient ONLY

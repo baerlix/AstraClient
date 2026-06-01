@@ -1,5 +1,19 @@
 local toolTipLabel = nil
 
+function UIItem:setTier(tier)
+  local item = self:getItem()
+  if item then
+    item:setTier(tier or 0)
+  end
+  ItemsDatabase.setTier(self, item)
+  return self
+end
+
+function UIItem:hook()
+  ItemsDatabase.setTier(self, self:getItem())
+  return self
+end
+
 function UIItem:onDragMove(mousePos, mouseMoved)
   if self.dragClone then
     self.dragClone:setX(mousePos.x + 12)
@@ -296,4 +310,5 @@ function UIItem:onItemChange()
     tooltip = self:getItem():getTooltip()
   end
   self:setTooltip(tooltip)
+  ItemsDatabase.setTier(self, self:getItem())
 end

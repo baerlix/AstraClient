@@ -63,7 +63,7 @@ function ForgeSystem.init(classPrice, transferMap, fusionPrices, transferPrices,
 	fusionMenu.itemsFusion.improveRateSuccessButton:setText('Improve to '.. (ForgeSystem.success + ForgeSystem.improveRateSuccess) ..'%')
 
 	-- configure transfer
-	transferMenu.itemsFusion.itemPanel.item:setItemId(0)
+	transferMenu.itemsFusion.itemPanel.item:setItem(nil)
 	transferMenu.itemsFusion.itemPanel.item.questionMark:setVisible(true)
 	transferMenu.itemsFusion.itemCount.value:setText("0 / 1")
 	transferMenu.itemsFusion.dustCount.dustamount:setText("0")
@@ -77,7 +77,7 @@ function ForgeSystem.init(classPrice, transferMap, fusionPrices, transferPrices,
 	transferMenu.itemsFusion.exaltedCount.amount:setText("???")
 	transferMenu.itemsFusion.exaltedCount.amount:setColor("#d33c3c")
 	-- configure transfer
-	transferMenu.converFusion.itemPanel.item:setItemId(0)
+	transferMenu.converFusion.itemPanel.item:setItem(nil)
 	transferMenu.converFusion.itemCount.value:setText("0 / 1")
 	transferMenu.converFusion.dustCount.dustamount:setText("0")
 	transferMenu.converFusion.dustCount.dustamount:setColor("#d33c3c")
@@ -433,10 +433,10 @@ function ForgeSystem.clearFusion()
 	fusionMenu.converFusion.convergencePanel.dustCount.dustamount:setColor("#d33c3c")
 	fusionMenu.converFusion.convergencePanel.fusionButton:setEnabled(false)
 	fusionMenu.converFusion.convergencePanel.fusionButton.locked:setVisible(true)
-	fusionMenu.converFusion.convergencePanel.fusionButton.item:setItemId(0)
+	fusionMenu.converFusion.convergencePanel.fusionButton.item:setItem(nil)
 	fusionMenu.converFusion.convergencePanel.fusionButton.item.tierflags:setVisible(false)
 	fusionMenu.converFusion.convergencePanel.fusionButton.item.questionMark:setVisible(true)
-	fusionMenu.converFusion.convergencePanel.fusionButton.itemTo:setItemId(0)
+	fusionMenu.converFusion.convergencePanel.fusionButton.itemTo:setItem(nil)
 	fusionMenu.converFusion.convergencePanel.fusionButton.itemTo.tierflags:setVisible(false)
 	fusionMenu.converFusion.convergencePanel.fusionButton.itemTo.questionMark:setVisible(true)
 
@@ -448,21 +448,21 @@ function ForgeSystem.clearFusion()
 
 
 	-- fusion normal
-	fusionMenu.itemFusionPanel.nextItem:setItemId(0)
+	fusionMenu.itemFusionPanel.nextItem:setItem(nil)
 	fusionMenu.itemFusionPanel.nextItem.tierflags:setVisible(false)
 	fusionMenu.itemFusionPanel.nextItem.questionMark:setVisible(true)
 
-	fusionMenu.itemsFusion.itemPanel.item:setItemId(0)
+	fusionMenu.itemsFusion.itemPanel.item:setItem(nil)
 	fusionMenu.itemsFusion.itemPanel.questionMark:setVisible(true)
 	fusionMenu.itemsFusion.itemCount.value:setText("0 / 1")
 	fusionMenu.itemsFusion.itemCount.value:setColor("#d33c3c")
 
-	fusionMenu.itemsFusion.fusionButton.item:setItemId(0)
+	fusionMenu.itemsFusion.fusionButton.item:setItem(nil)
 	fusionMenu.itemsFusion.fusionButton.item.tierflags:setVisible(false)
 	fusionMenu.itemsFusion.fusionButton.item.questionMark:setVisible(true)
 	fusionMenu.itemsFusion.dustCount.dustamount:setColor("#d33c3c")
 
-	fusionMenu.itemsFusion.fusionButton.itemTo:setItemId(0)
+	fusionMenu.itemsFusion.fusionButton.itemTo:setItem(nil)
 	fusionMenu.itemsFusion.fusionButton.itemTo.tierflags:setVisible(false)
 	fusionMenu.itemsFusion.fusionButton.itemTo.questionMark:setVisible(true)
 
@@ -492,11 +492,11 @@ function ForgeSystem.clearTransfer()
 
 	transferMenu.itemTransferPanel.itemsTransferPanel:destroyChildren()
 
-	transferMenu.itemsFusion.itemPanel.item:setItemId(0)
+	transferMenu.itemsFusion.itemPanel.item:setItem(nil)
 	transferMenu.itemsFusion.itemPanel.item.questionMark:setVisible(true)
 	transferMenu.itemsFusion.itemCount.value:setText("0 / 1")
 	transferMenu.itemsFusion.itemCount.value:setColor("#d33c3c")
-	transferMenu.itemsFusion.itemPanel.item:setItemId(0)
+	transferMenu.itemsFusion.itemPanel.item:setItem(nil)
 	transferMenu.itemsFusion.itemPanel.item.tierflags:setVisible(false)
 
 	transferMenu.itemsFusion.dustCount.dustamount:setColor("#d33c3c")
@@ -504,11 +504,11 @@ function ForgeSystem.clearTransfer()
 	transferMenu.itemsFusion.exaltedCount.amount:setText("???")
 	transferMenu.itemsFusion.exaltedCount.amount:setColor("#d33c3c")
 
-	transferMenu.itemsFusion.transferButton.item:setItemId(0)
+	transferMenu.itemsFusion.transferButton.item:setItem(nil)
 	transferMenu.itemsFusion.transferButton.item.questionMark:setVisible(true)
 	transferMenu.itemsFusion.transferButton.item.tierflags:setVisible(false)
 
-	transferMenu.itemsFusion.transferButton.itemTo:setItemId(0)
+	transferMenu.itemsFusion.transferButton.itemTo:setItem(nil)
 	transferMenu.itemsFusion.transferButton.itemTo.questionMark:setVisible(true)
 	transferMenu.itemsFusion.transferButton.itemTo.tierflags:setVisible(false)
 
@@ -517,11 +517,11 @@ function ForgeSystem.clearTransfer()
 	setStringColor(messageColor, " $", "#c0c0c0")
 	transferMenu.itemsFusion.moneyPanel.gold:setColoredText(messageColor)
 
-	transferMenu.converFusion.itemPanel.item:setItemId(0)
+	transferMenu.converFusion.itemPanel.item:setItem(nil)
 	transferMenu.converFusion.itemPanel.item.questionMark:setVisible(true)
 	transferMenu.converFusion.itemCount.value:setText("0 / 1")
 	transferMenu.converFusion.itemCount.value:setColor("#d33c3c")
-	transferMenu.converFusion.itemPanel.item:setItemId(0)
+	transferMenu.converFusion.itemPanel.item:setItem(nil)
 	transferMenu.converFusion.itemPanel.item.tierflags:setVisible(false)
 
 	transferMenu.converFusion.dustCount.dustamount:setColor("#d33c3c")
@@ -529,11 +529,11 @@ function ForgeSystem.clearTransfer()
 	transferMenu.converFusion.exaltedCount.amount:setText("???")
 	transferMenu.converFusion.exaltedCount.amount:setColor("#d33c3c")
 
-	transferMenu.converFusion.transferButton.item:setItemId(0)
+	transferMenu.converFusion.transferButton.item:setItem(nil)
 	transferMenu.converFusion.transferButton.item.questionMark:setVisible(true)
 	transferMenu.converFusion.transferButton.item.tierflags:setVisible(false)
 
-	transferMenu.converFusion.transferButton.itemTo:setItemId(0)
+	transferMenu.converFusion.transferButton.itemTo:setItem(nil)
 	transferMenu.converFusion.transferButton.itemTo.questionMark:setVisible(true)
 	transferMenu.converFusion.transferButton.itemTo.tierflags:setVisible(false)
 
@@ -944,10 +944,10 @@ function ForgeSystemEventFusionColor(transfer, success, otherItem, otherTier, it
 		if not success then
 			resultWindowPanel.recvItem:setItemShader("item_red")
 			scheduleEvent(function()
-				resultWindowPanel.recvItem:setItemId(0)
+				resultWindowPanel.recvItem:setItem(nil)
 			end, 500)
 		else
-			resultWindowPanel.transferItem:setItemId(0)
+			resultWindowPanel.transferItem:setItem(nil)
 			resultWindowPanel.recvItem:setItemShader("")
 			resultWindowPanel.recvItem.tierflags:setVisible(true)
 		end

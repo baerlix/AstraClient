@@ -617,7 +617,7 @@ function Offers:onSelectionOffer(_, selectedWidget)
 	Offers.displayPanel.description.image:setHeight(600)
 	Offers.displayPanel.description.package:destroyChildren()
 	Offers.displayPanel.description.package:setHeight(20)
-	if #offer.bundles > 0 then
+	if offer.bundles and #offer.bundles > 0 then
 		Offers.displayPanel.description.image:setHeight(500)
 		local size = 0
 		g_ui.createWidget('PackageLabel', Offers.displayPanel.description.package)

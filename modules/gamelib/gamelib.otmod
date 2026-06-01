@@ -12,6 +12,7 @@ Module
     dofile 'protocolgame'
     dofile 'position'
     dofile 'game'
+    dofile 'items'
 
     dofile 'creature'
     dofile 'player'

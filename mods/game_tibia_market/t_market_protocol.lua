@@ -238,6 +238,8 @@ function MarketProtocol.acceptOffer(timestamp, counter, amount)
 end
 
 function initMarketProtocol()
+  MarketProtocol.register()
+
   connect(g_game, {
     onGameStart = MarketProtocol.register,
     onGameEnd = MarketProtocol.unregister
@@ -250,9 +252,6 @@ function initMarketProtocol()
   g_game.sendMarketCancelOffer = MarketProtocol.cancelOffer
   g_game.sendMarketAcceptOffer = MarketProtocol.acceptOffer
 
-  if g_game.isOnline() then
-    MarketProtocol.register()
-  end
 end
 
 function terminateMarketProtocol()

@@ -263,7 +263,7 @@ function toggleRedirect(action, raceId)
     end
     g_game.bestiaryMonsterData(raceId)
   elseif action == "Bosstiary" then
-  	local monsterName = g_things.getMonsterList()[raceId]
+    local monsterName = getCyclopediaMonster(raceId)
     if monsterName then
       Bosstiary.onSideButtonRedirect(monsterName[1])
     end

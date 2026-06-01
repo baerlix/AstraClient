@@ -427,6 +427,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Thing>("getStackPriority", &Thing::getStackPriority);
     g_lua.bindClassMemberFunction<Thing>("getStackPos", &Thing::getStackPos);
     g_lua.bindClassMemberFunction<Thing>("getAnimationPhases", &Thing::getAnimationPhases);
+    g_lua.bindClassMemberFunction<Thing>("getClassification", &Thing::getClassification);
     g_lua.bindClassMemberFunction<Thing>("getTile", &Thing::getTile);
     g_lua.bindClassMemberFunction<Thing>("setMarked", &Thing::setMarked);
     g_lua.bindClassMemberFunction<Thing>("isMarked", &Thing::isMarked);
@@ -639,6 +640,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<ThingType>("getMinimapColor", &ThingType::getMinimapColor);
     g_lua.bindClassMemberFunction<ThingType>("getLensHelp", &ThingType::getLensHelp);
     g_lua.bindClassMemberFunction<ThingType>("getClothSlot", &ThingType::getClothSlot);
+    g_lua.bindClassMemberFunction<ThingType>("getClassification", &ThingType::getClassification);
     g_lua.bindClassMemberFunction<ThingType>("getElevation", &ThingType::getElevation);
     g_lua.bindClassMemberFunction<ThingType>("isGround", &ThingType::isGround);
     g_lua.bindClassMemberFunction<ThingType>("isGroundBorder", &ThingType::isGroundBorder);

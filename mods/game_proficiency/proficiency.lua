@@ -1,1164 +1,2558 @@
+-- Weapon Proficiency Module
+-- Implements the Weapon Proficiency system from Summer Update 2025
+-- credits: cipsoft
 if not WeaponProficiency then
-	WeaponProficiency = {}
-	WeaponProficiency.__index = WeaponProficiency
+    WeaponProficiency = {}
+    WeaponProficiency.__index = WeaponProficiency
 
-	WeaponProficiency.window = nil
-	WeaponProficiency.warningWindow = nil
-	WeaponProficiency.displayItemPanel = nil
-	WeaponProficiency.perkPanel = nil
-	WeaponProficiency.bonusDetailPanel = nil
-	WeaponProficiency.starProgressPanel = nil
-	WeaponProficiency.optionFilter = nil
-	WeaponProficiency.itemListScroll = nil
-	WeaponProficiency.vocationWarning = nil
+    WeaponProficiency.window = nil
+    WeaponProficiency.displayItemPanel = nil
+    WeaponProficiency.perkPanel = nil
+    WeaponProficiency.bonusDetailPanel = nil
+    WeaponProficiency.starProgressPanel = nil
+    WeaponProficiency.optionFilter = nil
+    WeaponProficiency.itemListScroll = nil
+    WeaponProficiency.vocationWarning = nil
+    WeaponProficiency.warningWindow = nil
+    WeaponProficiency.button = nil
 
-	WeaponProficiency.itemList = {}
-	WeaponProficiency.cacheList = {} -- [itemId] = {experience, perks}
+    WeaponProficiency.itemList = {}
+    WeaponProficiency.cacheList = {} -- [itemId] = {experience, perks}
 
-	WeaponProficiency.allProficiencyRequested = false
-	WeaponProficiency.firstItemRequested = nil
+    WeaponProficiency.allProficiencyRequested = false
+    WeaponProficiency.firstItemRequested = nil
+    WeaponProficiency.saveWeaponMissing = false
 
-	WeaponProficiency.saveWeaponMissing = false
+    WeaponProficiency.ItemCategory = {
+        Axes = 17,
+        Clubs = 18,
+        DistanceWeapons = 19,
+        Swords = 20,
+        WandsRods = 21,
+        FistWeapons = 27
+    }
 
-	WeaponProficiency.ItemCategory = {
-		Axes = 17, Clubs = 18, DistanceWeapons = 19,
-		Swords = 20, WandsRods = 21, FistWeapons = 27,
-	}
-	WeaponProficiency.perkPanelsName = {
-		"oneBonusIconPanel", "twoBonusIconPanel",
-		"threeBonusIconPanel"
-	}
-	WeaponProficiency.filters = {
-		["levelButton"] = false,
-		["vocButton"] = false,
-		["oneButton"] = false,
-		["twoButton"] = false,
-	}
+    WeaponProficiency.perkPanelsName = {"oneBonusIconPanel", "twoBonusIconPanel", "threeBonusIconPanel"}
 
-	-- Scrollable settings
-	WeaponProficiency.listWidgetHeight = 34 -- 34x34
-	WeaponProficiency.listCapacity = 0
-	WeaponProficiency.listMinWidgets = 0
-	WeaponProficiency.listMaxWidgets = 0
-	WeaponProficiency.offset = 0
-	WeaponProficiency.listPool = {}
-	WeaponProficiency.listData = {}
+    WeaponProficiency.filters = {
+        ["levelButton"] = false,
+        ["vocButton"] = false,
+        ["oneButton"] = false,
+        ["twoButton"] = false
+    }
+
+    -- Search filter
+    WeaponProficiency.searchFilter = nil
+
+    -- Scrollable settings
+    WeaponProficiency.listWidgetHeight = 34
+    WeaponProficiency.listCapacity = 0
+    WeaponProficiency.listMinWidgets = 0
+    WeaponProficiency.listMaxWidgets = 0
+    WeaponProficiency.offset = 0
+    WeaponProficiency.listPool = {}
+    WeaponProficiency.listData = {}
 end
 
-function isAvailable()
-	return type(g_things.getProficiencyThings) == "function"
+WeaponProficiency = WeaponProficiency or {}
+WeaponProficiency.__index = WeaponProficiency
+
+WeaponProficiency.itemList = WeaponProficiency.itemList or {}
+WeaponProficiency.cacheList = WeaponProficiency.cacheList or {}
+WeaponProficiency.ItemCategory = WeaponProficiency.ItemCategory or {
+    Axes = 17,
+    Clubs = 18,
+    DistanceWeapons = 19,
+    Swords = 20,
+    WandsRods = 21,
+    FistWeapons = 27
+}
+WeaponProficiency.perkPanelsName = WeaponProficiency.perkPanelsName or
+                                       {"oneBonusIconPanel", "twoBonusIconPanel", "threeBonusIconPanel"}
+WeaponProficiency.filters = WeaponProficiency.filters or {}
+WeaponProficiency.filters["levelButton"] = WeaponProficiency.filters["levelButton"] or false
+WeaponProficiency.filters["vocButton"] = WeaponProficiency.filters["vocButton"] or false
+WeaponProficiency.filters["oneButton"] = WeaponProficiency.filters["oneButton"] or false
+WeaponProficiency.filters["twoButton"] = WeaponProficiency.filters["twoButton"] or false
+WeaponProficiency.listPool = WeaponProficiency.listPool or {}
+WeaponProficiency.listData = WeaponProficiency.listData or {}
+WeaponProficiency.listWidgetHeight = WeaponProficiency.listWidgetHeight or 34
+WeaponProficiency.listCapacity = WeaponProficiency.listCapacity or 0
+WeaponProficiency.listMinWidgets = WeaponProficiency.listMinWidgets or 0
+WeaponProficiency.listMaxWidgets = WeaponProficiency.listMaxWidgets or 0
+WeaponProficiency.offset = WeaponProficiency.offset or 0
+
+local function getNumericCall(obj, methodName)
+    if not obj or not obj[methodName] then
+        return 0
+    end
+
+    local ok, value = pcall(function()
+        return obj[methodName](obj)
+    end)
+    if not ok then
+        return 0
+    end
+    return tonumber(value) or 0
+end
+
+local function getLeftSlotItem()
+    local player = g_game.getLocalPlayer()
+    return player and player:getInventoryItem(InventorySlotLeft) or nil
+end
+
+local function hasWeaponProficiencyProtocol()
+    return type(g_game.sendWeaponProficiencyAction) == 'function' and
+               type(g_game.sendWeaponProficiencyApply) == 'function'
+end
+
+local function sendWeaponProficiencyAction(actionType, itemId)
+    if not hasWeaponProficiencyProtocol() then
+        return false
+    end
+
+    g_game.sendWeaponProficiencyAction(actionType, itemId or 0)
+    return true
+end
+
+local function sendWeaponProficiencyApply(itemId, levels, perkPositions)
+    if not hasWeaponProficiencyProtocol() then
+        return false
+    end
+
+    g_game.sendWeaponProficiencyApply(itemId, levels, perkPositions)
+    return true
+end
+
+local function getPlayerWheelVocation()
+    local player = g_game.getLocalPlayer()
+    if not player then
+        return 0
+    end
+
+    if translateWheelVocation then
+        return translateWheelVocation(player:getVocation())
+    end
+
+    local vocation = player:getVocation()
+    return vocation > 10 and vocation - 10 or vocation
+end
+
+local function hasBit(mask, bitMask)
+    if Bit and Bit.hasBit then
+        return Bit.hasBit(mask, bitMask)
+    end
+    return math.floor(mask / bitMask) % 2 == 1
+end
+
+local function vocationBit(vocation)
+    if vocation <= 0 then
+        return 0
+    end
+    if Bit and Bit.bit then
+        return Bit.bit(vocation)
+    end
+    return 2 ^ (vocation - 1)
+end
+
+local function vocationRestrictionMatches(restrictVocation, playerVocation)
+    if not restrictVocation or restrictVocation == 0 then
+        return true
+    end
+
+    if type(restrictVocation) == "table" then
+        for _, vocationId in pairs(restrictVocation) do
+            local normalized = vocationId > 10 and vocationId - 10 or vocationId
+            if normalized == playerVocation then
+                return true
+            end
+        end
+        return false
+    end
+
+    local bitMask = vocationBit(playerVocation)
+    return bitMask > 0 and hasBit(restrictVocation, bitMask)
+end
+
+local function categoryMatchesPlayerVocation(category)
+    local requiredMask = WeaponCategoryVocation and WeaponCategoryVocation[category] or 0
+    if requiredMask == 0 then
+        return true
+    end
+
+    local bitMask = vocationBit(getPlayerWheelVocation())
+    return bitMask > 0 and hasBit(requiredMask, bitMask)
+end
+
+local function getVocationWarningDecision(marketData, thingType)
+    local player = g_game.getLocalPlayer()
+    local rawVocation = player and player:getVocation() or 0
+    local playerLevel = player and player:getLevel() or 0
+    local playerVocation = getPlayerWheelVocation()
+    local playerBit = vocationBit(playerVocation)
+    local category = marketData and marketData.category or nil
+    local requiredMask = WeaponCategoryVocation and WeaponCategoryVocation[category] or 0
+    local restrictVocation = marketData and marketData.restrictVocation or 0
+    local minimumLevel = getNumericCall(thingType, "getMinimumLevel")
+    if minimumLevel == 0 and marketData and marketData.requiredLevel then
+        minimumLevel = tonumber(marketData.requiredLevel) or 0
+    end
+
+    local categoryMatch = categoryMatchesPlayerVocation(category)
+    local hasRestrictVocation = restrictVocation and restrictVocation ~= 0
+    local restrictMatch = vocationRestrictionMatches(restrictVocation, playerVocation)
+    local levelMatch = minimumLevel == 0 or playerLevel >= minimumLevel
+    local vocationMatch = hasRestrictVocation and restrictMatch or categoryMatch
+
+    local showWarning = not vocationMatch or not levelMatch
+
+    return {
+        rawVocation = rawVocation,
+        playerLevel = playerLevel,
+        playerVocation = playerVocation,
+        playerBit = playerBit,
+        category = category,
+        requiredMask = requiredMask,
+        categoryMatch = categoryMatch,
+        restrictVocation = restrictVocation,
+        hasRestrictVocation = hasRestrictVocation,
+        restrictMatch = restrictMatch,
+        vocationMatch = vocationMatch,
+        minimumLevel = minimumLevel,
+        levelMatch = levelMatch,
+        showWarning = showWarning
+    }
 end
 
 function init()
-	if not isAvailable() then
-		g_logger.warning("Weapon proficiency disabled: missing g_things.getProficiencyThings in this client build.")
-		return
-	end
+    -- Load proficiency JSON data
+    if ProficiencyData:loadProficiencyJson() then
+        -- Create item cache from market data
+        WeaponProficiency:createItemCache()
+    end
 
-	WeaponProficiency.window = g_ui.displayUI('weapon_proficiency')
-	WeaponProficiency.displayItemPanel = WeaponProficiency.window:recursiveGetChildById("itemPanel")
-	WeaponProficiency.perkPanel = WeaponProficiency.window:recursiveGetChildById("bonusProgressBackground")
-	WeaponProficiency.bonusDetailPanel = WeaponProficiency.window:recursiveGetChildById("bonusDetailBackground")
-	WeaponProficiency.optionFilter = WeaponProficiency.window:recursiveGetChildById("classFilter")
-	WeaponProficiency.starProgressPanel = WeaponProficiency.window:recursiveGetChildById("starsPanelBackground")
-	WeaponProficiency.itemListScroll = WeaponProficiency.window:recursiveGetChildById("itemListScroll")
-	WeaponProficiency.vocationWarning = WeaponProficiency.window:recursiveGetChildById("vocationWarning")
-	WeaponProficiency.window:hide()
-
-	connect(g_game, {
-		onInspection = onInspection,
-		onGameStart = onGameStart,
-		onGameEnd = onGameEnd,
-		onWeaponProficiency = onWeaponProficiency,
-		onWeaponProficiencyExperience = onWeaponProficiencyExperience,
-		onProficiencyNotification = onProficiencyNotification
-	})
-	connect(g_things, { onLoadDat = loadProficiencyJson })
+    -- Connect to game events
+    connect(g_game, {
+        onGameStart = onGameStart,
+        onGameEnd = onGameEnd,
+        onWeaponProficiencyCatalogItem = onWeaponProficiencyCatalogItem,
+        onWeaponProficiencyCatalogReady = onWeaponProficiencyCatalogReady,
+        onWeaponProficiency = onWeaponProficiency,
+        onWeaponProficiencyExperience = onWeaponProficiencyExperience
+    })
 end
 
 function terminate()
-	if not isAvailable() then
-		return
-	end
+    cancelTopBarProficiencyInit()
+    cancelAutoSelect()
 
-	disconnect(g_game, {
-		onInspection = onInspection,
-		onGameStart = onGameStart,
-		onGameEnd = onGameEnd,
-		onWeaponProficiency = onWeaponProficiency,
-		onWeaponProficiencyExperience = onWeaponProficiencyExperience,
-		onProficiencyNotification = onProficiencyNotification
-	})
-	disconnect(g_things, { onLoadDat = loadProficiencyJson })
+    disconnect(g_game, {
+        onGameStart = onGameStart,
+        onGameEnd = onGameEnd,
+        onWeaponProficiencyCatalogItem = onWeaponProficiencyCatalogItem,
+        onWeaponProficiencyCatalogReady = onWeaponProficiencyCatalogReady,
+        onWeaponProficiency = onWeaponProficiency,
+        onWeaponProficiencyExperience = onWeaponProficiencyExperience
+    })
+
+    if WeaponProficiency.window then
+        WeaponProficiency.window:destroy()
+        WeaponProficiency.window = nil
+    end
+
+    if WeaponProficiency.warningWindow then
+        WeaponProficiency.warningWindow:destroy()
+        WeaponProficiency.warningWindow = nil
+    end
+end
+
+local function setProficiencyButtonState(state)
+    if not WeaponProficiency.button then
+        return
+    end
+
+    local button = WeaponProficiency.button:getChildById('button')
+    if button then
+        button:setOn(state)
+        button:setImageClip(state and '0 20 20 20' or '0 0 20 20')
+    elseif WeaponProficiency.button.setOn then
+        WeaponProficiency.button:setOn(state)
+    end
+end
+
+local function createProficiencyButton()
+    WeaponProficiency.buttonOwned = false
+
+    if modules.game_sidebuttons then
+        local button = modules.game_sidebuttons.proficiencyButton
+        if not button and modules.game_sidebuttons.buttonsWindow then
+            button = modules.game_sidebuttons.buttonsWindow:recursiveGetChildById('proficiencyButton')
+        end
+        if button then
+            button:setTooltip(tr('Open Weapon Proficiency'))
+            button.onClick = toggle
+            return button
+        end
+    end
+
+    if modules.game_mainpanel and modules.game_mainpanel.addToggleButton then
+        WeaponProficiency.buttonOwned = true
+        return modules.game_mainpanel.addToggleButton('ProficiencyButton', tr('Open Weapon Proficiency'),
+            '/images/options/button_proficiency', toggle, false, 21, true)
+    end
+
+    if modules.client_topmenu and modules.client_topmenu.addRightGameToggleButton then
+        WeaponProficiency.buttonOwned = true
+        return modules.client_topmenu.addRightGameToggleButton('ProficiencyButton', tr('Open Weapon Proficiency'),
+            '/images/options/button_proficiency', toggle, false, 21)
+    end
+
+    return nil
+end
+
+function cancelTopBarProficiencyInit()
+    if WeaponProficiency.topBarInitEvent then
+        removeEvent(WeaponProficiency.topBarInitEvent)
+        WeaponProficiency.topBarInitEvent = nil
+    end
+end
+
+function cancelAutoSelect()
+    if WeaponProficiency.autoSelectEvent then
+        removeEvent(WeaponProficiency.autoSelectEvent)
+        WeaponProficiency.autoSelectEvent = nil
+    end
+end
+
+function scheduleAutoSelect(delay)
+    cancelAutoSelect()
+    WeaponProficiency.autoSelectEvent = scheduleEvent(function()
+        WeaponProficiency.autoSelectEvent = nil
+        autoSelectItem()
+    end, delay)
 end
 
 function onGameStart()
-	WeaponProficiency.allProficiencyRequested = false
-	WeaponProficiency.saveWeaponMissing = false
-	WeaponProficiency.firstItemRequested = nil
+    WeaponProficiency.allProficiencyRequested = false
+    WeaponProficiency.saveWeaponMissing = false
+    WeaponProficiency.firstItemRequested = nil
+    WeaponProficiency.cacheList = {}
+    WeaponProficiency.currentEquippedExp = 0
+    WeaponProficiency.currentEquippedMaxExp = 0
+
+    -- Client version can change after module init; reload before rebuilding the item cache.
+    ProficiencyData:loadProficiencyJson(true)
+
+    -- Recreate item cache on each login (may have been cleared by reset())
+    WeaponProficiency:createItemCache()
+
+    WeaponProficiency.button = createProficiencyButton()
+    setProficiencyButtonState(false)
+
+    if not hasWeaponProficiencyProtocol() then
+        return
+    end
+
+    -- Initialize topbar proficiency widget
+    initTopBarProficiency()
+end
+
+-- Initialize the proficiency widget in the top stats bar
+function initTopBarProficiency(attempts)
+    attempts = attempts or 0
+    local maxRetries = 15
+
+    -- Delay initialization to ensure StatsBar is fully loaded
+    cancelTopBarProficiencyInit()
+    WeaponProficiency.topBarInitEvent = scheduleEvent(function()
+        WeaponProficiency.topBarInitEvent = nil
+        -- Access StatsBar through modules.game_interface
+        local StatsBarModule = modules.game_interface and modules.game_interface.StatsBar
+        if not StatsBarModule then
+            if attempts < maxRetries then
+                initTopBarProficiency(attempts + 1)
+            end
+            return
+        end
+
+        local statsBar = StatsBarModule.getCurrentStatsBarWithPosition and
+                             StatsBarModule.getCurrentStatsBarWithPosition()
+        if statsBar then
+            local profWidget = statsBar:recursiveGetChildById('proficiencyTopBar')
+            if profWidget then
+                profWidget:setVisible(true)
+
+                -- Request proficiency data for equipped weapon
+                local player = g_game.getLocalPlayer()
+                if player then
+                    local leftSlotItem = player:getInventoryItem(InventorySlotLeft)
+                    if leftSlotItem then
+                        local itemId = leftSlotItem:getId()
+                        sendWeaponProficiencyAction(0, itemId)
+                    end
+                end
+                updateTopBarProficiency()
+            end
+        else
+            if attempts < maxRetries then
+                initTopBarProficiency(attempts + 1)
+            end
+        end
+    end, 500) -- 500ms delay
+end
+
+-- Update the proficiency progress bar in the top bar
+function updateTopBarProficiency()
+    -- Access StatsBar through modules.game_interface
+    local StatsBarModule = modules.game_interface and modules.game_interface.StatsBar
+    if not StatsBarModule then
+        return
+    end
+
+    local statsBar = StatsBarModule.getCurrentStatsBarWithPosition and StatsBarModule.getCurrentStatsBarWithPosition()
+    if not statsBar then
+        return
+    end
+
+    local profWidget = statsBar:recursiveGetChildById('proficiencyTopBar')
+    if not profWidget then
+        return
+    end
+
+    -- Get equipped weapon
+    local player = g_game.getLocalPlayer()
+    if not player then
+        return
+    end
+
+    local leftSlotItem = player:getInventoryItem(InventorySlotLeft)
+    if not leftSlotItem then
+        -- No weapon equipped - show 0%
+        local progressBar = profWidget:getChildById('proficiencyProgress')
+        local label = profWidget:getChildById('proficiencyLabel')
+        if progressBar then
+            progressBar:setPercent(0)
+        end
+        if label then
+            label:setText('0%')
+        end
+        return
+    end
+
+    local itemId = leftSlotItem:getId()
+    local cacheData = WeaponProficiency.cacheList[itemId]
+
+    if cacheData then
+        local exp = cacheData.exp or 0
+
+        -- Get thingType for calculations
+        local thingType = nil
+        if leftSlotItem.getThingType then
+            thingType = leftSlotItem:getThingType()
+        end
+
+        -- Calculate percent for next level (not total)
+        local percent = 0
+        local currentLevel = 0
+        local nextLevelExp = 0
+        local currentLevelExp = 0
+
+        if ProficiencyData and ProficiencyData.getCurrentLevelByExp and ProficiencyData.getLevelPercent then
+            -- Get current level
+            currentLevel = ProficiencyData:getCurrentLevelByExp(leftSlotItem, exp, false, thingType) or 0
+            -- Get percent progress to next level
+            local nextLevel = currentLevel + 1
+            percent = ProficiencyData:getLevelPercent(exp, nextLevel, leftSlotItem, thingType) or 0
+
+            -- Get exp values for tooltip
+            if ProficiencyData.getMaxExperienceByLevel then
+                currentLevelExp = currentLevel > 0 and
+                                      (ProficiencyData:getMaxExperienceByLevel(currentLevel, leftSlotItem, thingType) or
+                                          0) or 0
+                nextLevelExp = ProficiencyData:getMaxExperienceByLevel(nextLevel, leftSlotItem, thingType) or 0
+            end
+        end
+
+        percent = math.min(100, math.max(0, percent))
+
+        local progressBar = profWidget:getChildById('proficiencyProgress')
+        local label = profWidget:getChildById('proficiencyLabel')
+        local bg = profWidget:getChildById('proficiencyBg')
+
+        if progressBar then
+            progressBar:setPercent(percent)
+        end
+        if label then
+            label:setText(percent .. '%')
+        end
+        if bg then
+            local expInLevel = exp - currentLevelExp
+            local expNeeded = nextLevelExp - currentLevelExp
+            bg:setTooltip(string.format("Proficiency Progress: %s / %s", tostring(expInLevel), tostring(expNeeded)))
+        end
+
+        -- Show/hide highlight based on unused perk
+        local highlight = profWidget:getChildById('highlightProficiencyButton')
+        if highlight then
+            highlight:setVisible(WeaponProficiency.hasUnusedPerk == true)
+        end
+
+        -- Store for reference
+        WeaponProficiency.currentEquippedExp = exp
+        WeaponProficiency.currentEquippedMaxExp = nextLevelExp
+    else
+        sendWeaponProficiencyAction(0, itemId)
+    end
 end
 
 function onGameEnd()
-	if not WeaponProficiency.window then
-		g_client.setInputLockWidget(nil)
-		return
-	end
+    cancelTopBarProficiencyInit()
+    cancelAutoSelect()
 
-	WeaponProficiency.window:hide()
-	WeaponProficiency:reset()
+    if WeaponProficiency.window then
+        WeaponProficiency.window:hide()
+    end
 
-	if WeaponProficiency.warningWindow then
-		WeaponProficiency:destroy()
-		WeaponProficiency.warningWindow = nil
-	end
-	g_client.setInputLockWidget(nil)
+    if WeaponProficiency.button then
+        if WeaponProficiency.buttonOwned then
+            WeaponProficiency.button:destroy()
+        else
+            setProficiencyButtonState(false)
+        end
+        WeaponProficiency.button = nil
+    end
+    WeaponProficiency.buttonOwned = false
+
+    WeaponProficiency:reset()
 end
 
-function loadProficiencyJson()
-	if not isAvailable() then
-		return
-	end
-
-	ProficiencyData:loadProficiencyJson()
+function onWeaponProficiencyCatalogItem(itemId, marketCategory, name)
+    WeaponProficiency:addCatalogItem(itemId, marketCategory, name)
 end
 
-function show()
-	if not isAvailable() or not WeaponProficiency.window then
-		return
-	end
+function onWeaponProficiencyCatalogReady()
+    sortWeaponProficiency(MarketCategory.WeaponsAll)
+    for _, categoryId in pairs(WeaponProficiency.ItemCategory) do
+        sortWeaponProficiency(categoryId)
+    end
 
-	WeaponProficiency.window:show(true)
-	WeaponProficiency.window:raise()
-	WeaponProficiency.window:focus()
+    if WeaponProficiency.window and WeaponProficiency.window:isVisible() then
+        WeaponProficiency:refreshItemList()
+    end
 end
 
-function hide()
-	if not isAvailable() or not WeaponProficiency.window then
-		return
-	end
-
-	WeaponProficiency.window:hide()
-end
-
-function getUnknownMarketCategory(itemType)
-	return UnknownCategories[itemType:getWeaponType()]
-end
-
-function sortWeaponProficiency(marketCategory)
-	local itemList = WeaponProficiency.itemList[marketCategory]
-	if not itemList then return end
-
-	table.sort(itemList, function(a, b)
-		local idA, idB = a.marketData.showAs, b.marketData.showAs
-
-		local expA = WeaponProficiency.cacheList[idA] and WeaponProficiency.cacheList[idA].exp or 0
-		local expB = WeaponProficiency.cacheList[idB] and WeaponProficiency.cacheList[idB].exp or 0
-
-		if expA == expB then
-			return a.marketData.name:lower() < b.marketData.name:lower()
-		end
-		return expA > expB
-	end)
-end
-
-function requestOpenWindow(redirectItem)
-	if not isAvailable() or not WeaponProficiency.window then
-		return
-	end
-
-	local category = "Weapons: All"
-	local targetItemId = nil
-	local leftSlotItem = modules.game_inventory.getLeftSlotItem()
-
-	if leftSlotItem then
-		category = WeaponCategoryToString[getUnknownMarketCategory(leftSlotItem)]
-		targetItemId = leftSlotItem:getId()
-	end
-
-	if redirectItem then
-		category = WeaponCategoryToString[getUnknownMarketCategory(redirectItem)]
-		targetItemId = redirectItem:getId()
-	end
-
-	if WeaponProficiency.firstItemRequested then
-		category =  WeaponCategoryToString[getUnknownMarketCategory(WeaponProficiency.firstItemRequested)]
-		targetItemId = WeaponProficiency.firstItemRequested:getId()
-		WeaponProficiency.firstItemRequested = nil
-	end
-
-	if not WeaponProficiency.allProficiencyRequested then
-		g_game.sendWeaponProficiencyAction(1) -- request all weapons
-		WeaponProficiency.firstItemRequested = redirectItem
-	end
-
-	local focusFirstChild = false
-	local focusVocation = (category ~= "Weapons: All")
-	if not focusVocation then
-		focusFirstChild = true
-		sortWeaponProficiency(MarketCategory.WeaponsAll)
-	end
-
-	WeaponProficiency.filters["vocButton"] = focusVocation 
-	WeaponProficiency.window:recursiveGetChildById("vocButton"):setChecked(focusVocation, true)
-
-	WeaponProficiency:onClearSearch(true)
-	WeaponProficiency:onWeaponCategoryChange(category, nil, targetItemId, focusFirstChild)
-
-	if WeaponProficiency.allProficiencyRequested then
-		g_client.setInputLockWidget(WeaponProficiency.window)
-		show()
-	end
-end
-
-function onInspection(inspectType, itemName, item, descriptions)
-	if inspectType ~= 2 or not isAvailable() or not WeaponProficiency.window then
-		return
-	end
-
-	local infoWidget = WeaponProficiency.window:recursiveGetChildById("infoWidget")
-	local text = itemName
-	for _, data in pairs(descriptions) do
-		text = text .. string.format("\n%s: %s", data.detail, wrapTextByWords(data.description, 52))
-	end
-
-	if not WeaponProficiency.allProficiencyRequested then
-		WeaponProficiency.allProficiencyRequested = true
-		requestOpenWindow()
-	end
-
-	infoWidget:setTooltip(text)
-end
-
+-- Called when server sends proficiency info (opcode 0xC4)
 function onWeaponProficiency(itemId, experience, perks, marketCategory)
-	WeaponProficiency.cacheList[itemId] = { exp = experience, perks = perks}
-	sortWeaponProficiency(marketCategory)
-	WeaponProficiency:onUpdateSelectedProficiency(itemId)
-end
-
-function onWeaponProficiencyExperience(itemId, experience, hasUnnusedPerk)
-	local thingType = g_things.getThingType(itemId)
-	if not thingType then
-		return
-	end
-	onProficiencyNotification(itemId, experience, hasUnnusedPerk, thingType)
-end
-
-function onProficiencyNotification(itemId, experience, hasUnnusedPerk, thingType)
-	local itemCache = WeaponProficiency.cacheList[itemId]
-	if not itemCache then
-		WeaponProficiency.cacheList[itemId] = { exp = experience, perks = {} }
-	else
-		if experience > 0 then
-			itemCache.exp = experience
-		end
-	end
-
-	sortWeaponProficiency(thingType:getMarketData().category)
-	modules.game_topbar.onUpdateProficiencyData(WeaponProficiency.cacheList[itemId], hasUnnusedPerk, thingType)
-end
-
----------------------------
------ Local Functions -----
----------------------------
-local function canChangeWeaponPerks()
-	local player = g_game.getLocalPlayer()
-	if not player or not g_game.isOnline() then
-		return false
-	end
-	return player:isInProtectionZone()
-end
-
-local function isMasteryAchieved(targetItem)
-	if not targetItem then
-		return false
-	end
-	
-	local maxExperience = ProficiencyData:getMaxExperience(ProficiencyData:getPerkLaneCount(targetItem:getProficiencyId()), targetItem)
-	local weaponEntry = WeaponProficiency.cacheList[targetItem:getId()]
-	local currentExperience = weaponEntry and weaponEntry.exp or 0
-
-	return currentExperience >= maxExperience
-end
-
-local function enableBonusIcon(bonusIcon, iconGrey, hightLightWidget, borderWidget, bonusDescWidget, bonusTooltip, augmentIconDarker, perkData)
-	if bonusIcon.blocked or bonusIcon.active or bonusIcon.locked then
-		return true
-	end
-
-	local visible = not iconGrey:isVisible()
-
-	iconGrey:setVisible(false)
-	hightLightWidget:setVisible(true)
-	borderWidget:setImageSource("/images/game/proficiency/border-weaponmasterytreeicons-active")
-
-	bonusDescWidget:setImageSource("")
-	bonusDescWidget:setText(bonusTooltip)
-	if bonusDescWidget:getWrappedLinesCount() > 4 then
-		bonusDescWidget:setText(short_text(bonusTooltip, 57))
-		bonusDescWidget:setTooltip(bonusTooltip)
-	end
-
-	if perkData.Type == PERK_SPELL_AUGMENT then
-		augmentIconDarker:setVisible(false)
-	end
-
-	bonusIcon.active = true
-end
-
-local function disableBonusIcon(iconGrey, hightLightWidget, borderWidget, bonusDescWidget, augmentIconDarker, perkData)
-	iconGrey:setVisible(true)
-	iconGrey:setOpacity(1)
-	hightLightWidget:setVisible(false)
-	borderWidget:setImageSource("/images/game/proficiency/border-weaponmasterytreeicons-inactive")
-
-	bonusDescWidget:setImageSource("/images/game/proficiency/icon-lock-grey")
-	bonusDescWidget:setText("")
-	bonusDescWidget:removeTooltip()
-
-	if perkData.Type == PERK_SPELL_AUGMENT then
-		augmentIconDarker:setVisible(true)
-		augmentIconDarker:setOpacity(1)
-	end
-end
-
-local function disableOtherBonusIcons(currentPerkPanel, currentBonusIcon)
-	for i = 0, 2 do
-		local bonusIcon = currentPerkPanel:getChildById("bonusIcon" .. i)
-		if bonusIcon and bonusIcon ~= currentBonusIcon and bonusIcon.active then
-			bonusIcon.blocked = false
-			bonusIcon.active = false
-			local iconGrey = bonusIcon:getChildById("icon-grey")
-			local hightLightWidget = bonusIcon:getChildById("highlight")
-			local borderWidget = bonusIcon:getChildById("border")
-			local augmentIconDarker = bonusIcon:getChildById("iconPerks-grey")
-			local augmentIcon = bonusIcon:getChildById("iconPerks")
-
-			iconGrey:setVisible(true)
-			iconGrey:setOpacity(1)
-			hightLightWidget:setVisible(false)
-			borderWidget:setImageSource("/images/game/proficiency/border-weaponmasterytreeicons-inactive")
-			if augmentIcon:isVisible() then
-				augmentIconDarker:setVisible(true)
-				augmentIconDarker:setOpacity(1)
-			end
-		end
-	end
-end
-
-local function updatePercentWidgets(child, currentExperience, _index, itemType)
-	if not child then
-		return
-	end
-
-	local percentWidget = child:getChildById("bonusSelectProgress")
-	local starWidget = WeaponProficiency.starProgressPanel:getChildById("starWidget" .. _index)
-	local starProgress = starWidget:getChildById("starProgress")
-
-	local percent = ProficiencyData:getLevelPercent(currentExperience, _index, itemType)
-	local maxLevelExperience = ProficiencyData:getMaxExperienceByLevel(_index, itemType)
-
-	percentWidget:setPercent(percent)
-	starProgress:setPercent(percent)
-	starProgress:setTooltip(string.format("%s / %s", comma_value(currentExperience), comma_value(maxLevelExperience)))
-
-	if percent >= 100 then
-		local iconTypo = isMasteryAchieved(itemType) and "gold" or "silver"
-		starWidget:getChildById("star"):setImageSource(string.format("/images/store/icon-star-%s", iconTypo))
-		for _, widget in pairs(child.currentPerkPanel:getChildren()) do
-			widget.blocked = false
-		end
-	end
-end
-
-local function checkSortOptions(itemData)
-	local player = g_game.getLocalPlayer()
-	if not player then
-		return false
-	end
-
-	local playerLevel = player:getLevel()
-	local playerVocation = translateWheelVocation(player:getVocation())
-
-	if WeaponProficiency.filters["levelButton"] then
-		if itemData.marketData.requiredLevel > playerLevel then
-			return false
-		end
-	end
-
-	if WeaponProficiency.filters["vocButton"] then
-		local itemVocation = itemData.marketData.restrictVocation
-		if #itemVocation > 0 and not table.contains(itemVocation, playerVocation) then
-			return false
-		end
-	end
-
-	if WeaponProficiency.filters["oneButton"] then
-		if itemData.thingType:getClothSlot() ~= 6 then
-			return false
-		end
-	end
-
-	if WeaponProficiency.filters["twoButton"] then
-		if itemData.thingType:getClothSlot() ~= 0 then
-			return false
-		end
-	end
-	return true
-end
-
-local function setupPerkIconGrey(perkData, iconSource, iconClip, iconGrey, augmentIconNormal, augmentIconDarker)
-	if perkData.Type == PERK_SPELL_AUGMENT then
-		iconGrey:setImageSource(string.format("%s-off", iconSource))
-		iconGrey:setImageClip(string.format("%s 64 64", iconClip))
-		local augmentIconClip = ProficiencyData:getAugmentIconClip(perkData)
-		augmentIconNormal:setVisible(true)
-		augmentIconDarker:setVisible(true)
-		augmentIconNormal:setImageClip(string.format("%s 32 32", augmentIconClip))
-		local x = tonumber(augmentIconClip:match("^(%d+)")) or 0
-		augmentIconDarker:setImageClip(string.format("%d 32 32 32", x))
-	else
-		local x = tonumber(iconClip:match("^(%d+)")) or 0
-		iconGrey:setImageSource(iconSource)
-		iconGrey:setImageClip(string.format("%d 64 64 64", x))
-	end
-end
-
-local function createHoverHandler(bonusIcon, iconGrey, augmentIconDarker)
-	return function(widget, hovered)
-		if not bonusIcon.active and not bonusIcon.locked and not bonusIcon.blocked then
-			local opacity = hovered and 0.5 or 1
-			iconGrey:setOpacity(opacity)
-			augmentIconDarker:setOpacity(opacity)
-		end
-		g_tooltip.onWidgetHoverChange(widget, hovered)
-	end
-end
-
-local function createClickHandler(bonusIcon, currentPerkPanel, bonusDetail, hightLightWidget, borderWidget, iconGrey, augmentIconDarker, bonusTooltip, perkData, itemId)
-	return function()
-		if bonusIcon.blocked or bonusIcon.active or bonusIcon.locked then return end
-		disableOtherBonusIcons(currentPerkPanel, bonusIcon)
-		enableBonusIcon(bonusIcon, iconGrey, hightLightWidget, borderWidget, bonusDetail:recursiveGetChildById("bonusName"), bonusTooltip, augmentIconDarker, perkData)
-		WeaponProficiency:checkPerksMatch(itemId)
-	end
-end
-
-----------------------------
------- Core Functions ------
-----------------------------
-function WeaponProficiency:reset()
-	self.cacheList = {}
-	self.allProficiencyRequested = false
-end
-
-function WeaponProficiency:updateMainButtons(currentData)
-	local enableReset = canChangeWeaponPerks() and table.size(currentData.perks) > 0
-	local resetButton = self.window:getChildById("reset")
-	local applyButton = self.window:getChildById("apply")
-	local okButton = self.window:getChildById("ok")
-	local closeButton = self.window:getChildById("close")
-
-	resetButton:setOn(enableReset)
-	applyButton:setOn(false)
-	okButton:setOn(false)
-
-	local resetTooltip = "Reset your perks"
-	if not canChangeWeaponPerks() then
-		resetTooltip = "You can only reset your perks in a protection zone."
-	elseif table.empty(currentData.perks) then
-		resetTooltip = "You don't have any perks to reset."
-	end
-
-	resetButton:setTooltip(resetTooltip)
-	applyButton:setTooltip("No changes have been made to your perks.")
-	closeButton:setText("Close")
-end
-
-function WeaponProficiency:createItemCache()
-	if not isAvailable() then
-		return
-	end
-
-	self.itemList[MarketCategory.WeaponsAll] = {}
-	for _, v in pairs(self.ItemCategory) do
-		self.itemList[v] = {}
-	end
-
-	local types = g_things.getProficiencyThings()
-	local itemList = self.window:recursiveGetChildById("itemList")
-	for index, itemType in pairs(types) do
-		local item = Item.create(itemType:getId())
-		local marketData = itemType:getMarketData()
-
-		if not table.empty(marketData) then
-			if self.itemList[marketData.category] == nil then
-				marketData.category = getUnknownMarketCategory(itemType)
-				marketData.showAs = itemType:getId()
-			end
-
-			item:setId(marketData.showAs)
-			if string.empty(marketData.name) then
-				marketData.name = g_things.getCyclopediaItemName(itemType:getId())
-			end
-
-			local marketItem = { displayItem = item, thingType = itemType, marketData = marketData }
-			table.insert(self.itemList[marketData.category], marketItem)
-			table.insert(self.itemList[MarketCategory.WeaponsAll], marketItem)
-		end
-	end
-
-	local function sortByName(a, b)
-		local nameA = a.marketData.name:lower()
-		local nameB = b.marketData.name:lower()
-		return nameA < nameB
-	end
-
-	for _, v in pairs(self.itemList) do
-		table.sort(v, sortByName)
-	end
-end
-
-function WeaponProficiency:onItemListValueChange(scroll, value, delta)
-	if value == self.oldScrollValue then
-		return
-	end
-
-	self.oldScrollValue = value
-	local itemListWidget = self.window:recursiveGetChildById("itemList")
-
-	-- Special case with half visible lines
-	if #self.listData > 30 and #self.listData <= 35 then
-    	itemListWidget:setVirtualOffset({x = 0, y = (delta > 0 and 8 or 0)})
-		return true
-	end
-
-    local itemsPerRow = 5
-    local rowsVisible = 8
-    local itemsVisible = itemsPerRow * rowsVisible
-    local totalItems = #self.listData
-
-    local startLabel = (value * itemsPerRow) + 1
-    local endLabel = startLabel + itemsVisible - 1
-
-    local currentWidgetIndex = startLabel
-
-    self.offset = self.offset + ((value % 5) * 2)
-
-    if self.offset > 64 or value == 0 then
-        self.offset = 0
+    -- Ensure perks is a table
+    if type(perks) ~= "table" then
+        perks = {}
     end
 
-    if endLabel >= totalItems then
-        self.offset = 7
-    end
-
-    itemListWidget:setVirtualOffset({x = 0, y = self.offset})
-
-	local currentItem = self.displayItemPanel:getChildById("item"):getItem()
-
-    for k, widget in pairs(itemListWidget:getChildren()) do
-        if currentWidgetIndex > totalItems then
-            widget:setVisible(false)
-            goto continue
-        end
-
-        local entry = self.listData[currentWidgetIndex]
-        if not entry then
-            widget:setVisible(false)
-            goto continue
-        end
-
-        widget:getChildById("item"):setItem(entry.displayItem)
-        widget:setTooltip(entry.marketData.name)
-        widget.cache = entry
-
-        widget:setVisible(true)
-
-		if widget:isFocused() then
-			itemListWidget:focusChild(nil, MouseFocusReason, false, true)
-		end
-
-		if currentItem and currentItem:getId() == entry.marketData.showAs then
-			itemListWidget:focusChild(widget, MouseFocusReason, false, true)
-		end
-
-		-- Check experience/stars
-		local cacheEntry = self.cacheList[entry.marketData.showAs] or nil
-		local weaponLevel = ProficiencyData:getCurrentLevelByExp(entry.displayItem, (cacheEntry and cacheEntry.exp or 0))
-		local starPanel = widget:getChildById("starsBackground")
-
-		local mastery = isMasteryAchieved(entry.displayItem)
-		starPanel:destroyChildren()
-		if weaponLevel > 0 then
-			for i = 1, weaponLevel do
-				local _star = g_ui.createWidget("MiniStar", starPanel)
-				if mastery then
-					_star:setImageSource("/images/game/proficiency/icon-star-tiny-gold")
-				end
-			end
-		end
-
-        currentWidgetIndex = currentWidgetIndex + 1
-        :: continue ::
-    end
-end
-
-function WeaponProficiency:onWeaponCategoryChange(selected, searchText, targetItemId, focusFirstChild, fromOptionChange)
-	local weaponCategory = WeaponStringToCategory[selected]
-	if not weaponCategory then
-		return
-	end
-
-	sortWeaponProficiency(weaponCategory)
-
-	-- Update current filter without propagation
-	self.optionFilter:setCurrentOption(selected, true)
-	
-	local targetWidget = nil
-	local itemListWidget = self.window:recursiveGetChildById("itemList")
-	local currentItem = self.displayItemPanel:getChildById("item"):getItem()
-
-	itemListWidget.onChildFocusChange = nil
-
-	self.listCapacity = ((math.floor(itemListWidget:getHeight() / self.listWidgetHeight)) + 2) * 5
-    self.listMinWidgets = 0
-	self.oldScrollValue = 0
-    self.listPool = {}
-    self.listData = {}
-
-	-- Generate the filtred list
-	for _, data in pairs(self.itemList[weaponCategory]) do
-		if not checkSortOptions(data) then
-			goto continue
-		end
-	
-		if searchText and not string.empty(searchText) and not matchText(searchText:lower(), data.marketData.name:lower()) then
-			goto continue
-		end
-
-		table.insert(self.listData, data)
-		:: continue ::
-	end
-
-	local currentIndex = 0
-	for _, data in pairs(self.listData) do
-		if #self.listPool >= self.listCapacity then
-            break
-        end
-
-		local widget = itemListWidget:recursiveGetChildById("widget_" .. currentIndex)
-		if not widget or not checkSortOptions(data) then
-			goto continue
-		end
-	
-		if searchText and not string.empty(searchText) and not matchText(searchText:lower(), data.marketData.name:lower()) then
-			goto continue
-		end
-
-		widget:getChildById("item"):setItem(data.displayItem)
-		widget:setVisible(true)
-		widget:setTooltip(data.marketData.name)
-		widget.cache = data
-
-		if not targetWidget then
-			if targetItemId and targetItemId == data.marketData.showAs then
-				targetWidget = widget
-			elseif fromOptionChange and not focusFirstChild and currentItem and currentItem:getId() == data.marketData.showAs then
-				targetWidget = widget
-			end
-		end
-
-		-- Check experience/stars
-		local cacheEntry = self.cacheList[data.marketData.showAs] or nil
-		local weaponLevel = ProficiencyData:getCurrentLevelByExp(data.displayItem, (cacheEntry and cacheEntry.exp or 0)) -- missing vocation
-		local starPanel = widget:getChildById("starsBackground")
-
-		starPanel:destroyChildren()
-		local mastery = isMasteryAchieved(data.displayItem)
-		if weaponLevel > 0 then
-			for i = 1, weaponLevel do
-				local _star = g_ui.createWidget("MiniStar", starPanel)
-				if mastery then
-					_star:setImageSource("/images/game/proficiency/icon-star-tiny-gold")
-				end
-			end
-		end
-
-		currentIndex = currentIndex + 1
-		table.insert(self.listPool, widget)
-		:: continue ::
-	end
-
-	for i = currentIndex, self.listCapacity do
-        local widget = itemListWidget:recursiveGetChildById("widget_" .. i)
-        if widget then
-            widget:setVisible(false)
+    -- IMPORTANT: Server sends perks in 0-indexed format, convert to 1-indexed for Lua
+    -- Also filter out invalid perks (values >= 200 are clearly invalid, likely from uninitialized data)
+    local convertedPerks = {}
+    for _, perk in ipairs(perks) do
+        if type(perk) == "table" and #perk >= 2 then
+            local level = perk[1]
+            local perkPos = perk[2]
+            -- Filter out invalid values (255 becomes 256 after +1, which is invalid)
+            -- Valid levels are 0-6 (0-indexed), valid perk positions are 0-2 (0-indexed)
+            if level >= 0 and level <= 10 and perkPos >= 0 and perkPos <= 10 then
+                -- Convert from 0-indexed (server) to 1-indexed (Lua)
+                table.insert(convertedPerks, {level + 1, perkPos + 1})
+            end
         end
     end
 
-	self.listMaxWidgets = math.ceil((#self.listData / 5) - 7)
-	local specialListSize = false
-	if #self.listData > 30 and #self.listData <= 35 then
-		self.listMaxWidgets = 1
-		specialListSize = true
-	end
-
-    self.itemListScroll:setValue(0)
-    self.itemListScroll:setMinimum(self.listMinWidgets)
-    self.itemListScroll:setMaximum(math.max(0, self.listMaxWidgets))
-    self.itemListScroll.onValueChange = function(list, value, delta) self:onItemListValueChange(list, value, delta) end
-
-	self.itemListScroll:setVisibleItems(specialListSize and 9 or math.min(#self.listData, 45))
-    self.itemListScroll:setVirtualChilds(specialListSize and 10 or #self.listData)
-	
-	itemListWidget:setVirtualOffset({x = 0, y = 0})
-
-	itemListWidget.onChildFocusChange = function(_, a)
-		WeaponProficiency:onItemListFocusChange(a.cache)
-	end
-
-	if targetWidget or focusFirstChild then
-		itemListWidget:focusChild(targetWidget or itemListWidget:getFirstChild(), MouseFocusReason, true)
-	else
-		itemListWidget:focusChild(nil, MouseFocusReason, false, true)
-	end
-
-	-- Widget not found/visible lets force the selection
-	if targetItemId and not targetWidget then
-		for _, data in pairs(self.itemList[weaponCategory]) do
-			if targetItemId == data.marketData.showAs then
-				self:onItemListFocusChange(data)
-				break
-			end
-		end
-	end
-end
-
-function WeaponProficiency:onItemListFocusChange(selectedCache)
-	if not selectedCache or not g_game.isOnline() then return end
-
-	local displayPanel = self.displayItemPanel:getChildById("item")
-	local oldItem = displayPanel:getItem()
-
-	-- Display a warning message to save changes
-	if self.saveWeaponMissing and oldItem then
-		self:onCloseMessage(false, oldItem, function() self:onItemListFocusChange(selectedCache) end)
-		return
-	end
-
-	local displayItem = selectedCache.displayItem
-	local displayItemId = displayItem:getId()
-	displayPanel:setItem(displayItem)
-	self.displayItemPanel:getChildById("itemNameTitle"):setText(selectedCache.marketData.name)
-
-	self.perkPanel:destroyChildren()
-	self.bonusDetailPanel:destroyChildren()
-	self.starProgressPanel:destroyChildren()
-
-	-- Vocation warning label
-	local player = g_game.getLocalPlayer()
-	local itemVocation = selectedCache.marketData.restrictVocation
-	local playerVocation = translateWheelVocation(player:getVocation())
-	local showVocationWarning = (#itemVocation > 0 and not table.contains(itemVocation, playerVocation)) or player:getLevel() < selectedCache.marketData.requiredLevel
-	self.vocationWarning:setVisible(showVocationWarning)
-
-	local currentData = self.cacheList[displayItemId] or {exp = 0, perks = {}}
-	self.cacheList[displayItemId] = currentData
-
-	g_game.doThing(false)
-	g_game.sendInspectionObject(4, displayItemId, 0)
-	g_game.doThing(true)
-
-	if self.allProficiencyRequested then
-		g_game.doThing(false)
-		g_game.sendWeaponProficiencyAction(0, displayItemId)
-		g_game.doThing(true)
-	end
-
-	local proficiencyId = displayItem:getProficiencyId()
-	local profEntry = ProficiencyData:getContentById(proficiencyId)
-	if not profEntry then return end
-
-	self:updateExperienceProgress(currentData.exp, #profEntry.Levels, displayItem)
-
-	for i, levelData in ipairs(profEntry.Levels) do
-		local widget = g_ui.createWidget("BonusSelectPanel", self.perkPanel)
-		local bonusDetail = g_ui.createWidget("BonusDetailPanel", self.bonusDetailPanel, "bonusDetail_" .. i)
-		local starDetail = g_ui.createWidget("StarWidget", self.starProgressPanel)
-		starDetail:setId("starWidget" .. i)
-		widget:getChildById("bonusSelectProgress"):setPercent(0)
-
-		local currentPerkPanel = self.perkPanelsName[#levelData.Perks] and widget:getChildById(self.perkPanelsName[#levelData.Perks])
-		if currentPerkPanel then
-			currentPerkPanel:setVisible(true)
-			widget.currentPerkPanel = currentPerkPanel
-		end
-
-		local widgetIsBlocked = not canChangeWeaponPerks() and currentData.perks[i - 1]
-		for index, perkData in ipairs(levelData.Perks) do
-			local bonusIcon = currentPerkPanel:getChildById(string.format("bonusIcon%s", index - 1))
-			local icon = bonusIcon:getChildById("icon")
-			local iconGrey = bonusIcon:getChildById("icon-grey")
-			local borderWidget = bonusIcon:getChildById("border")
-			local hightLightWidget = bonusIcon:getChildById("highlight")
-			local augmentIconNormal = bonusIcon:getChildById("iconPerks")
-			local augmentIconDarker = bonusIcon:getChildById("iconPerks-grey")
-
-			local iconSource, iconClip = ProficiencyData:getImageSourceAndClip(perkData)
-			local bonusName, bonusTooltip = ProficiencyData:getBonusNameAndTooltip(perkData)
-
-			bonusIcon:setTooltip(string.format("%s\n\n%s", bonusName, bonusTooltip))
-			bonusIcon.blocked, bonusIcon.locked, bonusIcon.active = true, false, false
-			bonusIcon.perkData = perkData
-
-			icon:setImageSource(iconSource)
-			icon:setImageClip(string.format("%s 64 64", iconClip))
-
-			-- Setup icon grey and augment
-			setupPerkIconGrey(perkData, iconSource, iconClip, iconGrey, augmentIconNormal, augmentIconDarker)
-
-			if currentData.perks[i - 1] == index - 1 then
-				bonusIcon.blocked = false
-				enableBonusIcon(bonusIcon, iconGrey, hightLightWidget, borderWidget, bonusDetail:recursiveGetChildById("bonusName"), bonusTooltip, augmentIconDarker, perkData)
-			end
-
-			if widgetIsBlocked then
-				bonusIcon:getChildById("locked-perk"):setVisible(true)
-				bonusIcon.locked = true
-			end
-
-			bonusIcon.onHoverChange = createHoverHandler(bonusIcon, iconGrey, augmentIconDarker)
-			bonusIcon.onClick = createClickHandler(bonusIcon, currentPerkPanel, bonusDetail, hightLightWidget, borderWidget, iconGrey, augmentIconDarker, bonusTooltip, perkData, displayItemId)
-		end
-
-		updatePercentWidgets(widget, currentData.exp, i, displayItem)
-	end
-end
-
-function WeaponProficiency:onUpdateSelectedProficiency(itemId)
-	local currentItem = self.displayItemPanel:getChildById("item"):getItem()
-	if not currentItem or currentItem:getId() ~= itemId then
-		return
-	end
-
-	local currentData = self.cacheList[itemId] or {exp = 0, perks = {}}
-	local experience = currentData.exp
-	self:updateExperienceProgress(experience, #self.perkPanel:getChildren(), currentItem)
-
-	-- Setup window buttons
-	self:updateMainButtons(currentData)
-
-	for i, child in ipairs(self.perkPanel:getChildren()) do
-		updatePercentWidgets(child, experience, i, currentItem)
-
-		local widgetIsBlocked = not canChangeWeaponPerks() and currentData.perks[i - 1]
-		for index, widget in pairs(child.currentPerkPanel:getChildren()) do
-			
-			if widgetIsBlocked then
-				widget:getChildById("locked-perk"):setVisible(true)
-				widget.locked = true
-			end
-
-			if currentData.perks[i - 1] == index - 1 then
-				widget.blocked = false
-				widget.locked = false
-
-				local iconGrey = widget:getChildById("icon-grey")
-				local borderWidget = widget:getChildById("border")
-				local hightLightWidget = widget:getChildById("highlight")
-				local augmentIconDarker = widget:getChildById("iconPerks-grey")
-				local bonusDetail = self.bonusDetailPanel:getChildById("bonusDetail_" .. i)
-				local _, bonusTooltip = ProficiencyData:getBonusNameAndTooltip(widget.perkData)
-
-				enableBonusIcon(widget, iconGrey, hightLightWidget, borderWidget, bonusDetail:recursiveGetChildById("bonusName"), bonusTooltip, augmentIconDarker, widget.perkData)
-			end
-		end
-		::continue::
-	end
-end
-
-function WeaponProficiency:updateExperienceProgress(currentExp, levelsCount, displayItem)
-	local experienceWidget = self.window:recursiveGetChildById("progressDescription")
-	local experienceLeftWidget = self.window:recursiveGetChildById("nextLevelDescription")
-	local totalProgressWidget = self.window:recursiveGetChildById("proficiencyProgress")
-
-	local currentCeilExperience = ProficiencyData:getCurrentCeilExperience(currentExp, displayItem)
-	local maxExperience = ProficiencyData:getMaxExperience(levelsCount, displayItem)
-	local masteryAchieved = currentExp >= maxExperience
-
-	experienceWidget:setText(string.format("%s / %s", comma_value(currentExp), comma_value(currentCeilExperience)))
-	
-	self:updateItemAddons(currentExp, displayItem, masteryAchieved)
-
-	if masteryAchieved then
-		experienceLeftWidget:setText("Mastery achieved")
-	else
-		experienceLeftWidget:setText(string.format("%s XP for next level", comma_value(currentCeilExperience - currentExp)))
-	end
-
-	totalProgressWidget:setPercent(ProficiencyData:getTotalPercent(currentExp, levelsCount, displayItem))
-	totalProgressWidget:setTooltip(string.format("%s / %s", comma_value(currentExp), comma_value(maxExperience)))
-end
-
-function WeaponProficiency:updateItemAddons(currentExp, displayItem, masteryAchieved)
-	local weaponLevel = math.min(7, ProficiencyData:getCurrentLevelByExp(displayItem, currentExp))
-	local iconLevelWidget = self.window:recursiveGetChildById("iconMasteryLevel")
-	local weaponLevelWidget = self.window:recursiveGetChildById("itemMasteryLevel")
-
-	iconLevelWidget:setImageSource("/images/game/proficiency/icon-masterylevel-" .. weaponLevel)
-	weaponLevelWidget:setVisible(weaponLevel > 0)
-	if weaponLevel > 0 then
-		local color = masteryAchieved and "gold" or "silver"
-		weaponLevelWidget:setImageSource(string.format("/images/game/proficiency/icon-masterylevel-%d-%s", weaponLevel, color))
-	end
-end
-
-function WeaponProficiency:toggleFilterOption(filter)
-	local filterId = filter:getId()
-	local oneHandButton = self.window:recursiveGetChildById("oneButton")
-	local twoHandButton = self.window:recursiveGetChildById("twoButton")
-
-	if filterId == "oneButton" then
-		if twoHandButton:isChecked() then
-			twoHandButton:setChecked(false, true) -- (true) ignore lua call
-			self.filters["twoButton"] = false
-		end
-	elseif filterId == "twoButton" then
-		if oneHandButton:isChecked() then
-			oneHandButton:setChecked(false, true)  -- (true) ignore lua call
-			self.filters["oneButton"] = false
-		end
-	end
-
-	self.filters[filterId] = not filter:isChecked()
-	filter:setChecked(not filter:isChecked())
-
-	self:onWeaponCategoryChange(self.optionFilter:getCurrentOption().text)
-end
-
-function WeaponProficiency:onSearchTextChange(text)
-	local currentCategory = self.optionFilter:getCurrentOption().text
-	self:onWeaponCategoryChange(currentCategory, text)
-end
-
-function WeaponProficiency:onClearSearch()
-	local searchField = self.window:recursiveGetChildById("searchText")
-	if not string.empty(searchField:getText()) then
-		searchField:clearText()
-	end
-end
-
-function WeaponProficiency:onApplyChanges(button, targetItem)
-	if button and not button:isOn() then return end
-
-	local currentItem = self.displayItemPanel:getChildById("item"):getItem()
-	if targetItem then
-		currentItem = targetItem
-	end
-
-	if not currentItem then
-		return
-	end
-
-	local toSend = {}
-	for i, child in ipairs(self.perkPanel:getChildren()) do
-		for k, v in pairs(child.currentPerkPanel:getChildren()) do
-			if not v.blocked and v.active then 
-				toSend[i - 1] = k - 1
-			end
-		end
-	end
-
-	if table.empty(toSend) then
-		g_game.sendWeaponProficiencyAction(2, currentItem:getId())
-		self.cacheList[currentItem:getId()].perks = {}
-	else
-		local levels = {}
-		local perkPositions = {}
-		for level, perkPosition in pairs(toSend) do
-			table.insert(levels, level)
-			table.insert(perkPositions, perkPosition)
-		end
-		g_game.sendWeaponProficiencyApply(currentItem:getId(), levels, perkPositions)
-	end
-
-	self.window:getChildById("apply"):setOn(false)
-	self.window:getChildById("ok"):setOn(false)
-	self.window:getChildById("close"):setText("Close")
-	self.saveWeaponMissing = false
-end
-
-function WeaponProficiency:onResetWeapon(button)
-	if not canChangeWeaponPerks() or not button:isOn() then
-		return
-	end
-
-	local currentItem = self.displayItemPanel:getChildById("item"):getItem()
-	if not currentItem then
-		return
-	end
-
-	local applyButton = self.window:getChildById("apply")
-	local okButton = self.window:getChildById("ok")
-	local closeButton = self.window:getChildById("close")
-	local weaponEntry = self.cacheList[currentItem:getId()] or {}
-	local perksSize = table.size(weaponEntry.perks)
-
-	button:setOn(false)
-	applyButton:setOn(perksSize > 0)
-	okButton:setOn(perksSize > 0)
-
-	button:setTooltip("You don't have any perks to reset.")
-
-	if perksSize > 0 then
-		local text = "Apply changes to your perks"
-		applyButton:setTooltip(text)
-		okButton:setTooltip(text)
-		closeButton:setText("Cancel")
-		self.saveWeaponMissing = true
-	else
-		local text = "No changes have been made to your perks."
-		applyButton:setTooltip(text)
-		okButton:setTooltip(text)
-		closeButton:setText("Close")
-	end
-
-	-- Limpar as informaçoes
-	for i, child in ipairs(self.perkPanel:getChildren()) do
-		local bonusDetail = self.bonusDetailPanel:getChildById("bonusDetail_" .. i)
-
-		for index, widget in pairs(child.currentPerkPanel:getChildren()) do
-			widget:getChildById("locked-perk"):setVisible(false)
-
-			if widget.active then
-				widget.blocked = false
-				widget.locked = false
-				widget.active = false
-
-				local iconGrey = widget:getChildById("icon-grey")
-				local borderWidget = widget:getChildById("border")
-				local hightLightWidget = widget:getChildById("highlight")
-				local augmentIconDarker = widget:getChildById("iconPerks-grey")
-
-				disableBonusIcon(iconGrey, hightLightWidget, borderWidget, bonusDetail:recursiveGetChildById("bonusName"), augmentIconDarker, widget.perkData)
-			end
-		end
-	end
-end
-
-function WeaponProficiency:onCloseWindow(button)
-	if button:getText() == "Close" then
-		hide()
-		g_client.setInputLockWidget(nil)
-		return true
-	end
-
-	self:onCloseMessage(true)
-end
-
-function WeaponProficiency:onCloseMessage(userClosingWindow, targetItem, callbackFunction)
-	if self.warningWindow then
-		self.warningWindow:destroy()
-	end
-
-	self.window:hide()
-	g_client.setInputLockWidget(nil)
-
-	local noButton = function()
-		if self.warningWindow then
-			self.warningWindow:destroy()
-			self.warningWindow = nil
-		end
-		self.saveWeaponMissing = false
-
-		if not userClosingWindow then
-			self.window:show()
-			g_client.setInputLockWidget(self.window)
-			if callbackFunction then
-				callbackFunction()
-			end
-		else
-			modules.game_console.getConsole():focus()
-			m_interface.getRootPanel():focus()
-		end
-	end
-
-  	local yesButton = function()
-    	if self.warningWindow then
-      		self.warningWindow:destroy()
-			self.warningWindow = nil
-    	end
-
-		self:onApplyChanges(nil, targetItem)
-		
-		if not userClosingWindow then
-			if callbackFunction then
-				callbackFunction()
-			end
-
-			self.window:show()
-			g_client.setInputLockWidget(self.window)
-		else
-			modules.game_console.getConsole():focus()
-			m_interface.getRootPanel():focus()
-		end
-  	end
-
-  	self.warningWindow = displayGeneralBox('Save?', "You did not save the changes you have made to your perks.\n\nWould you like to save your perks?",
-		{{ text=tr('Yes'), callback = yesButton }, { text=tr('No'), callback = noButton }
-	}, yesFunction, noFunction)
-end
-
-function WeaponProficiency:checkPerksMatch(itemId)
-    local cachePerks = self.cacheList[itemId].perks
-    local allPerksMatch = true
-
-    -- Se o cache estiver vazio, não bate
-    if table.empty(cachePerks) then
-        allPerksMatch = false
+    -- Only update cache perks if server returned non-empty perks
+    -- Otherwise, keep existing cache perks (they were just applied)
+    local existingCache = WeaponProficiency.cacheList[itemId]
+    if #convertedPerks > 0 then
+        -- Server confirmed perks, use them (now in 1-indexed format)
+        WeaponProficiency.cacheList[itemId] = {
+            exp = experience,
+            perks = convertedPerks
+        }
     else
-        -- Para cada linha de perks
-        for levelIndex, perkRow in ipairs(self.perkPanel:getChildren()) do
-            local expectedPerk = cachePerks[levelIndex - 1]
-            local foundActive = nil
+        -- Server returned empty perks, but we may have just applied some
+        -- Keep existing perks in cache if they exist
+        if existingCache and existingCache.perks and #existingCache.perks > 0 then
+            WeaponProficiency.cacheList[itemId] = {
+                exp = experience,
+                perks = existingCache.perks
+            }
+        else
+            WeaponProficiency.cacheList[itemId] = {
+                exp = experience,
+                perks = {}
+            }
+        end
+    end
 
-            for perkIndex, widget in pairs(perkRow.currentPerkPanel:getChildren()) do
-                if widget.active then
-                    foundActive = perkIndex - 1
+    local cachePerks = WeaponProficiency.cacheList[itemId].perks
+
+    -- Re-sort the item list when we receive new proficiency data
+    if marketCategory then
+        sortWeaponProficiency(marketCategory)
+        sortWeaponProficiency(MarketCategory.WeaponsAll)
+    end
+
+    if WeaponProficiency.window and WeaponProficiency.window:isVisible() then
+        -- Refresh item list to update stars and order
+        WeaponProficiency:refreshItemList()
+
+        WeaponProficiency:onUpdateSelectedProficiency(itemId)
+
+        -- If this is the currently selected item, update display with cached perks
+        if WeaponProficiency.selectedItemId == itemId then
+            WeaponProficiency:displayProficiencyData(itemId, experience, cachePerks)
+        end
+    end
+
+    -- Update top bar proficiency display
+    updateTopBarProficiency()
+end
+
+function onWeaponProficiencyExperience(itemId, experience, hasUnusedPerk)
+    local itemCache = WeaponProficiency.cacheList[itemId]
+    if not itemCache then
+        WeaponProficiency.cacheList[itemId] = {
+            exp = experience,
+            perks = {}
+        }
+    else
+        if experience > 0 then
+            itemCache.exp = experience
+        end
+    end
+
+    -- Re-sort all categories when experience changes
+    sortWeaponProficiency(MarketCategory.WeaponsAll)
+    for _, categoryId in pairs(WeaponProficiency.ItemCategory) do
+        sortWeaponProficiency(categoryId)
+    end
+
+    -- Store the unused perk state globally
+    WeaponProficiency.hasUnusedPerk = hasUnusedPerk
+
+    -- Show/hide highlight on proficiency button based on unused perks
+    updateProficiencyHighlight()
+
+    -- Refresh item list if window is visible
+    if WeaponProficiency.window and WeaponProficiency.window:isVisible() then
+        WeaponProficiency:refreshItemList()
+    end
+
+    -- Update top bar proficiency display
+    updateTopBarProficiency()
+end
+
+-- Update the proficiency button highlight based on unused perk state
+function updateProficiencyHighlight()
+    if WeaponProficiency.button then
+        local highlight = WeaponProficiency.button:getChildById('highlight')
+        local bright = WeaponProficiency.button:getChildById('brightButton')
+        local shouldShow = WeaponProficiency.hasUnusedPerk == true
+        if highlight then
+            highlight:setVisible(shouldShow)
+        end
+        if bright then
+            bright:setVisible(shouldShow)
+        end
+    end
+end
+
+-- Public function to open the proficiency window
+function show()
+    if not WeaponProficiency.window then
+        if not createWindow() then
+            return false
+        end
+    end
+
+    if not WeaponProficiency.window then
+        return false
+    end
+
+    -- Reset search filter and clear search text
+    WeaponProficiency.searchFilter = nil
+    local searchText = WeaponProficiency.window:recursiveGetChildById('searchText')
+    if searchText then
+        searchText:setText('')
+    end
+
+    -- Reset filter buttons visual state (but keep filter state)
+    -- The filters persist across open/close
+
+    WeaponProficiency.window:show()
+    WeaponProficiency.window:raise()
+    WeaponProficiency.window:focus()
+
+    setProficiencyButtonState(true)
+    if WeaponProficiency.button then
+        -- Hide highlight when window is opened
+        local highlight = WeaponProficiency.button:getChildById('highlight')
+        local bright = WeaponProficiency.button:getChildById('brightButton')
+        if highlight then
+            highlight:setVisible(false)
+        end
+        if bright then
+            bright:setVisible(false)
+        end
+    end
+
+    -- Refresh item list to show all items
+    WeaponProficiency:refreshItemList()
+
+    -- Auto-select item when window opens (equipped weapon or first in list)
+    -- Use longer delay to ensure items are loaded, with retry
+    WeaponProficiency.autoSelectRetries = 0
+    scheduleAutoSelect(300)
+    return true
+end
+
+-- Auto-select an item (equipped weapon or first in list)
+function autoSelectItem()
+    if not WeaponProficiency.window or not WeaponProficiency.window:isVisible() then
+        return
+    end
+
+    -- Already has a selected item with perks displayed? Skip
+    if WeaponProficiency.selectedMarketItem and WeaponProficiency.selectedMarketItem.displayItem then
+        local perkPanel = WeaponProficiency.perkPanel
+        if perkPanel and perkPanel:getChildCount() > 0 then
+            return
+        end
+    end
+
+    local targetItemId = nil
+    local targetMarketItem = nil
+
+    -- Get all items from all categories
+    local allItems = WeaponProficiency.itemList[MarketCategory.WeaponsAll] or {}
+
+    -- First, check if player has an equipped weapon
+    local player = g_game.getLocalPlayer()
+    if player then
+        local leftSlotItem = player:getInventoryItem(InventorySlotLeft)
+        if leftSlotItem then
+            local equippedId = leftSlotItem:getId()
+            -- Search for this item in our list
+            for _, marketItem in ipairs(allItems) do
+                local itemId = marketItem.originalId or (marketItem.displayItem and marketItem.displayItem:getId())
+                local displayId = marketItem.displayId or itemId
+                if itemId == equippedId or displayId == equippedId then
+                    targetItemId = itemId
+                    targetMarketItem = marketItem
                     break
                 end
             end
+        end
+    end
 
-            -- Se o cache possui perk esperado mas não há ativo, ou há ativo a mais que o cache
-            if expectedPerk and foundActive ~= expectedPerk then
-                allPerksMatch = false
-                break
-            elseif not expectedPerk and foundActive ~= nil then
-                -- Ativo a mais, fora do que o cache esperava
-                allPerksMatch = false
+    -- If no equipped weapon found, select first item from the allItems list
+    if not targetItemId and #allItems > 0 then
+        -- Just take the first item from the list
+        local firstItem = allItems[1]
+        if firstItem then
+            targetItemId = firstItem.originalId or (firstItem.displayItem and firstItem.displayItem:getId())
+            targetMarketItem = firstItem
+        end
+    end
+
+    -- Fallback: check UI item list if allItems is empty
+    if not targetItemId then
+        local itemList = WeaponProficiency.window:recursiveGetChildById("itemList")
+        if itemList then
+            local children = itemList:getChildren()
+            for _, child in ipairs(children) do
+                local itemWidget = child:getChildById('item')
+                if itemWidget then
+                    local displayItem = itemWidget:getItem()
+                    if displayItem and displayItem:getId() > 0 then
+                        local displayItemId = displayItem:getId()
+                        -- Find the marketItem for this display
+                        for _, marketItem in ipairs(allItems) do
+                            local mItemId = marketItem.originalId or
+                                                (marketItem.displayItem and marketItem.displayItem:getId())
+                            local mDisplayId = marketItem.displayId or mItemId
+                            if mDisplayId == displayItemId or mItemId == displayItemId then
+                                targetItemId = mItemId
+                                targetMarketItem = marketItem
+                                break
+                            end
+                        end
+                        if targetItemId then
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Select the target item
+    if targetItemId and targetMarketItem then
+        WeaponProficiency:selectItem(targetItemId, targetMarketItem)
+    else
+        -- Retry if no item found yet (cache might not be ready)
+        WeaponProficiency.autoSelectRetries = (WeaponProficiency.autoSelectRetries or 0) + 1
+        if WeaponProficiency.autoSelectRetries < 5 then
+            scheduleAutoSelect(200)
+        end
+    end
+end
+
+function hide()
+    if not WeaponProficiency.window then
+        return
+    end
+
+    cancelAutoSelect()
+
+    -- Close window
+    WeaponProficiency.window:hide()
+
+    setProficiencyButtonState(false)
+
+    -- Re-show highlight if there are still unused perks
+    updateProficiencyHighlight()
+
+    -- Reset selected item state so auto-select works on next open
+    WeaponProficiency.selectedItemId = nil
+    WeaponProficiency.selectedDisplayId = nil
+    WeaponProficiency.selectedMarketItem = nil
+end
+
+function WeaponProficiency:onCloseWindow()
+    local hasPending = self.pendingSelections and next(self.pendingSelections) ~= nil
+    if not hasPending then
+        hide()
+        return true
+    end
+
+    if self.warningWindow then
+        self.warningWindow:destroy()
+        self.warningWindow = nil
+    end
+
+    local yesButton = function()
+        if self.warningWindow then
+            self.warningWindow:destroy()
+            self.warningWindow = nil
+        end
+        self:applyPendingSelections()
+        hide()
+    end
+
+    local noButton = function()
+        if self.warningWindow then
+            self.warningWindow:destroy()
+            self.warningWindow = nil
+        end
+        self.pendingSelections = {}
+        self:updateApplyButtonState()
+        hide()
+    end
+
+    self.warningWindow = displayGeneralBox('Save?',
+        "You did not save the changes you have made to your perks.\n\nWould you like to save your perks?", {{
+            text = tr('Yes'),
+            callback = yesButton
+        }, {
+            text = tr('No'),
+            callback = noButton
+        }}, yesButton, noButton)
+    return false
+end
+
+function toggle()
+    if WeaponProficiency.window and WeaponProficiency.window:isVisible() then
+        WeaponProficiency:onCloseWindow()
+    else
+        requestOpenWindow()
+    end
+end
+
+-- Request to open proficiency window with optional item redirect
+function requestOpenWindow(redirectItem)
+    WeaponProficiency:ensureItemCache()
+
+    local category = "Weapons: All"
+    local targetItemId = nil
+    local targetMarketItem = nil
+
+    -- Check left hand slot for equipped weapon
+    local leftSlotItem = getLeftSlotItem()
+    if leftSlotItem then
+        local weaponType = getNumericCall(leftSlotItem, "getWeaponType")
+        if weaponType > 0 then
+            category = getWeaponCategoryString(weaponType)
+        end
+        targetItemId = leftSlotItem:getId()
+    end
+
+    if redirectItem then
+        local weaponType = getNumericCall(redirectItem, "getWeaponType")
+        if weaponType > 0 then
+            category = getWeaponCategoryString(weaponType)
+        end
+        targetItemId = redirectItem:getId()
+    end
+
+    if not targetItemId and WeaponProficiency.firstItemRequested then
+        targetItemId = WeaponProficiency.firstItemRequested:getId()
+        local weaponType = WeaponProficiency.firstItemRequested.getWeaponType and
+                               WeaponProficiency.firstItemRequested:getWeaponType() or 0
+        category = getWeaponCategoryString(weaponType)
+    end
+
+    if targetItemId then
+        targetMarketItem = WeaponProficiency:findMarketItem(targetItemId)
+    end
+
+    -- Request all proficiencies from server
+    if not WeaponProficiency.allProficiencyRequested then
+        if not sendWeaponProficiencyAction(1) then -- Request all weapons
+            return
+        end
+        WeaponProficiency.allProficiencyRequested = true
+        WeaponProficiency.firstItemRequested = redirectItem
+    end
+
+    if not show() then
+        return
+    end
+
+    if WeaponProficiency.optionFilter and category then
+        WeaponProficiency.optionFilter:setCurrentOption(category, true)
+        WeaponProficiency:refreshItemList()
+    end
+
+    if targetMarketItem then
+        scheduleEvent(function()
+            if WeaponProficiency.window and WeaponProficiency.window:isVisible() then
+                local displayId = targetMarketItem.displayId or targetMarketItem.originalId or targetItemId
+                WeaponProficiency:selectItem(displayId, targetMarketItem)
+            end
+        end, 50)
+    end
+end
+
+-- Helper function to get weapon category string
+function getWeaponCategoryString(weaponType)
+    if WeaponCategoryToString[weaponType] then
+        return WeaponCategoryToString[weaponType]
+    end
+
+    local categoryMap = {
+        [1] = "Weapons: Clubs", -- WEAPON_CLUB
+        [2] = "Weapons: Axes", -- WEAPON_AXE
+        [3] = "Weapons: Swords", -- WEAPON_SWORD
+        [4] = "Weapons: Wands", -- WEAPON_WANDROD
+        [7] = "Weapons: Distance", -- WEAPON_BOW
+        [8] = "Weapons: Distance", -- WEAPON_THROW
+        [9] = "Weapons: Distance", -- WEAPON_CROSSBOW
+        [0] = "Weapons: Fist" -- WEAPON_FIST
+    }
+    return categoryMap[weaponType] or "Weapons: All"
+end
+
+-- Create the proficiency window
+function createWindow()
+    WeaponProficiency.window = g_ui.displayUI('proficiency')
+    if not WeaponProficiency.window then
+        return false
+    end
+    WeaponProficiency.window:hide()
+
+    WeaponProficiency.displayItemPanel = WeaponProficiency.window:recursiveGetChildById("itemPanel")
+    WeaponProficiency.perkPanel = WeaponProficiency.window:recursiveGetChildById("bonusProgressBackground")
+    WeaponProficiency.bonusDetailPanel = WeaponProficiency.window:recursiveGetChildById("bonusDetailBackground")
+    WeaponProficiency.optionFilter = WeaponProficiency.window:recursiveGetChildById("classFilter")
+    WeaponProficiency.starProgressPanel = WeaponProficiency.window:recursiveGetChildById("starsPanelBackground")
+    WeaponProficiency.itemListScroll = WeaponProficiency.window:recursiveGetChildById("itemListScroll")
+    WeaponProficiency.vocationWarning = WeaponProficiency.window:recursiveGetChildById("vocationWarning")
+
+    -- Debug: verify panels are found
+
+    -- Setup category dropdown options
+    if WeaponProficiency.optionFilter then
+        WeaponProficiency.optionFilter:clearOptions()
+        WeaponProficiency.optionFilter:addOption("Weapons: All")
+        WeaponProficiency.optionFilter:addOption("Weapons: Swords")
+        WeaponProficiency.optionFilter:addOption("Weapons: Axes")
+        WeaponProficiency.optionFilter:addOption("Weapons: Clubs")
+        WeaponProficiency.optionFilter:addOption("Weapons: Distance")
+        WeaponProficiency.optionFilter:addOption("Weapons: Wands")
+        WeaponProficiency.optionFilter:addOption("Weapons: Fist")
+        WeaponProficiency.optionFilter.onOptionChange = function(widget, option)
+            WeaponProficiency:refreshItemList()
+        end
+    end
+
+    -- Setup search text handler
+    local searchText = WeaponProficiency.window:recursiveGetChildById('searchText')
+    if searchText then
+        searchText.onTextChange = function(widget, text)
+            WeaponProficiency.searchFilter = text
+            WeaponProficiency:refreshItemList()
+        end
+    end
+
+    -- Setup clear search button
+    local clearButton = WeaponProficiency.window:recursiveGetChildById('clearSearchButton')
+    if clearButton then
+        clearButton.onClick = function()
+            local searchWidget = WeaponProficiency.window:recursiveGetChildById('searchText')
+            if searchWidget then
+                searchWidget:setText('')
+                WeaponProficiency.searchFilter = nil
+                WeaponProficiency:refreshItemList()
+            end
+        end
+    end
+
+    -- Initialize item list
+    WeaponProficiency:refreshItemList()
+    return true
+end
+
+-- Reset proficiency data
+function WeaponProficiency:reset()
+    cancelAutoSelect()
+    self.cacheList = {}
+    self.allProficiencyRequested = false
+    self.itemList = {}
+    self.catalogItems = {}
+    self.selectedItemId = nil
+    self.selectedDisplayId = nil
+    self.selectedMarketItem = nil
+    self.pendingSelections = {}
+    self.hasUnusedPerk = false
+    self.autoSelectRetries = 0
+    self._itemCacheReady = false
+end
+
+function WeaponProficiency:ensureItemCache()
+    if self._itemCacheReady then
+        return
+    end
+    self:createItemCache()
+end
+
+-- Create item cache from proficiency things
+function WeaponProficiency:createItemCache()
+    self.itemList = {}
+    self.catalogItems = {}
+    self.itemList[MarketCategory.WeaponsAll] = {}
+    self.ItemCategory = self.ItemCategory or {
+        Axes = 17,
+        Clubs = 18,
+        DistanceWeapons = 19,
+        Swords = 20,
+        WandsRods = 21,
+        FistWeapons = 27
+    }
+
+    for _, v in pairs(self.ItemCategory) do
+        self.itemList[v] = {}
+    end
+
+    -- Weapon categories that support proficiency
+    local weaponCategories = {
+        [MarketCategory.Axes] = true,
+        [MarketCategory.Clubs] = true,
+        [MarketCategory.DistanceWeapons] = true,
+        [MarketCategory.Swords] = true,
+        [MarketCategory.WandsRods] = true,
+        [MarketCategory.FistWeapons] = true
+    }
+
+    local itemTypes = {}
+    local useProficiencyThings = g_things.getProficiencyThings ~= nil
+    if useProficiencyThings then
+        itemTypes = g_things.getProficiencyThings()
+    end
+
+    for _, itemType in pairs(itemTypes) do
+        local marketData = itemType.getMarketData and itemType:getMarketData() or {}
+
+        local category = marketData and marketData.category or nil
+        if not weaponCategories[category] then
+            category = getUnknownMarketCategory(itemType)
+        end
+
+        if self.itemList[category] and (useProficiencyThings or weaponCategories[category]) then
+            local originalId = itemType:getId()
+            local showAs = marketData and marketData.showAs or nil
+            if not showAs or showAs == 0 then
+                showAs = originalId
+            end
+
+            local name = marketData and marketData.name or nil
+            if (not name or name == "") and g_things.getCyclopediaItemName then
+                name = g_things.getCyclopediaItemName(originalId)
+            end
+            if not name or name == "" then
+                name = itemType.getName and itemType:getName() or tostring(originalId)
+            end
+
+            local item = Item.create(originalId)
+            item:setId(showAs)
+
+            marketData = marketData or {}
+            marketData.category = category
+            marketData.showAs = showAs
+            marketData.name = name
+
+            local marketItem = {
+                displayItem = item,
+                thingType = itemType,
+                marketData = marketData,
+                originalId = originalId,
+                displayId = showAs
+            }
+
+            table.insert(self.itemList[category], marketItem)
+            table.insert(self.itemList[MarketCategory.WeaponsAll], marketItem)
+            self.catalogItems[originalId] = true
+        end
+    end
+
+    -- Sort by name initially
+    local function sortByName(a, b)
+        local nameA = (a.marketData.name or ""):lower()
+        local nameB = (b.marketData.name or ""):lower()
+        return nameA < nameB
+    end
+
+    for _, v in pairs(self.itemList) do
+        table.sort(v, sortByName)
+    end
+
+    if not self.firstItemRequested and self.itemList[MarketCategory.WeaponsAll][1] then
+        self.firstItemRequested = self.itemList[MarketCategory.WeaponsAll][1].displayItem
+    end
+
+    self._itemCacheReady = true
+end
+
+function WeaponProficiency:addCatalogItem(itemId, category, name)
+    if not self._itemCacheReady then
+        self:createItemCache()
+    end
+    if self.catalogItems[itemId] then
+        return
+    end
+
+    category = tonumber(category) or MarketCategory.WeaponsAll
+    if not self.itemList[category] then
+        category = MarketCategory.WeaponsAll
+    end
+
+    local item = Item.create(itemId)
+    if not item then
+        return
+    end
+
+    local marketItem = {
+        displayItem = item,
+        thingType = g_things.getThingType(itemId, ThingCategoryItem),
+        marketData = {
+            category = category,
+            showAs = itemId,
+            name = name or tostring(itemId)
+        },
+        originalId = itemId,
+        displayId = itemId
+    }
+
+    if category ~= MarketCategory.WeaponsAll then
+        table.insert(self.itemList[category], marketItem)
+    end
+    table.insert(self.itemList[MarketCategory.WeaponsAll], marketItem)
+    self.catalogItems[itemId] = true
+
+    if not self.firstItemRequested then
+        self.firstItemRequested = item
+    end
+end
+
+-- Sort weapons by experience (highest first), then by name
+function sortWeaponProficiency(marketCategory)
+    if not WeaponProficiency.itemList then
+        return
+    end
+
+    local itemList = WeaponProficiency.itemList[marketCategory]
+    if not itemList then
+        return
+    end
+
+    table.sort(itemList, function(a, b)
+        local idA = a.originalId or a.displayId or (a.marketData and a.marketData.showAs)
+        local idB = b.originalId or b.displayId or (b.marketData and b.marketData.showAs)
+
+        local expA = WeaponProficiency.cacheList[idA] and WeaponProficiency.cacheList[idA].exp or 0
+        local expB = WeaponProficiency.cacheList[idB] and WeaponProficiency.cacheList[idB].exp or 0
+
+        if expA == expB then
+            local nameA = (a.marketData.name or ""):lower()
+            local nameB = (b.marketData.name or ""):lower()
+            return nameA < nameB
+        end
+        return expA > expB
+    end)
+end
+
+function WeaponProficiency:findMarketItem(itemId)
+    local allItems = self.itemList[MarketCategory.WeaponsAll] or {}
+    for _, marketItem in ipairs(allItems) do
+        local originalId = marketItem.originalId
+        local displayId = marketItem.displayId
+        local showAs = marketItem.marketData and marketItem.marketData.showAs
+        if itemId == originalId or itemId == displayId or itemId == showAs then
+            return marketItem
+        end
+    end
+    return nil
+end
+
+-- Check if mastery is achieved for an item
+function isMasteryAchieved(displayItem, cacheId, thingType, marketData)
+    if not displayItem then
+        return false
+    end
+
+    local itemId = cacheId or displayItem:getId()
+    local weaponEntry = WeaponProficiency.cacheList[itemId]
+    local currentExperience = weaponEntry and weaponEntry.exp or 0
+
+    -- Get proficiency data
+    local tt = thingType
+    if not tt and displayItem.getThingType then
+        tt = displayItem:getThingType()
+    end
+    if not tt then
+        tt = g_things.getThingType(displayItem:getId(), ThingCategoryItem)
+    end
+    local proficiencyId = ProficiencyData:getProficiencyIdForItem(displayItem, tt, marketData)
+    local perkCount = ProficiencyData:getPerkLaneCount(proficiencyId)
+    local maxExperience = ProficiencyData:getMaxExperience(perkCount, displayItem, tt, marketData)
+
+    return currentExperience >= maxExperience
+end
+
+-- Get unknown market category for item
+function getUnknownMarketCategory(itemType)
+    local weaponType = getNumericCall(itemType, "getWeaponType")
+    if WeaponCategoryToString[weaponType] then
+        return weaponType
+    end
+    return UnknownCategories[weaponType] or MarketCategory.WeaponsAll
+end
+
+-- Update selected proficiency display
+function WeaponProficiency:onUpdateSelectedProficiency(itemId)
+    if not self.displayItemPanel then
+        return
+    end
+
+    -- Check if the itemId matches the currently selected item's originalId
+    local selectedOriginalId = self.selectedMarketItem and self.selectedMarketItem.originalId
+    if not selectedOriginalId or selectedOriginalId ~= itemId then
+        return
+    end
+
+    -- Get display item from selected market item
+    local displayItem = self.selectedMarketItem and self.selectedMarketItem.displayItem
+    if not displayItem then
+        return
+    end
+
+    local currentData = self.cacheList[itemId] or {
+        exp = 0,
+        perks = {}
+    }
+    self:updateExperienceProgress(currentData.exp, displayItem)
+end
+
+-- Update experience progress display
+function WeaponProficiency:updateExperienceProgress(currentExp, displayItem)
+    if not self.window then
+        return
+    end
+    if not displayItem then
+        return
+    end
+
+    local experienceWidget = self.window:recursiveGetChildById("progressDescription")
+    local experienceLeftWidget = self.window:recursiveGetChildById("nextLevelDescription")
+    local totalProgressWidget = self.window:recursiveGetChildById("proficiencyProgress")
+
+    if not experienceWidget or not experienceLeftWidget then
+        return
+    end
+
+    local thingType = self.selectedMarketItem and self.selectedMarketItem.thingType
+    local marketData = self.selectedMarketItem and self.selectedMarketItem.marketData
+    local proficiencyId = ProficiencyData:getProficiencyIdForItem(displayItem, thingType, marketData)
+    local perkCount = ProficiencyData:getPerkLaneCount(proficiencyId)
+    local currentCeilExperience = ProficiencyData:getCurrentCeilExperience(currentExp, displayItem, thingType,
+        marketData)
+    local maxExperience = ProficiencyData:getMaxExperience(perkCount, displayItem, thingType, marketData)
+    local masteryAchieved = currentExp >= maxExperience
+
+    experienceWidget:setText(string.format("%s / %s", comma_value(currentExp), comma_value(currentCeilExperience)))
+
+    if masteryAchieved then
+        experienceLeftWidget:setText("Mastery achieved")
+    else
+        experienceLeftWidget:setText(string.format("%s XP for next level",
+            comma_value(currentCeilExperience - currentExp)))
+    end
+
+    if totalProgressWidget then
+        totalProgressWidget:setPercent(ProficiencyData:getTotalPercent(currentExp, perkCount, displayItem, thingType,
+            marketData))
+    end
+end
+
+-- Toggle filter option (Level, Voc, 1H, 2H buttons)
+function WeaponProficiency:toggleFilterOption(button)
+    if not button then
+        return
+    end
+
+    local buttonId = button:getId()
+
+    if buttonId == "oneButton" and self.filters["twoButton"] then
+        self.filters["twoButton"] = false
+        local twoButton = self.window and self.window:recursiveGetChildById("twoButton")
+        if twoButton then
+            twoButton:setOn(false)
+        end
+    elseif buttonId == "twoButton" and self.filters["oneButton"] then
+        self.filters["oneButton"] = false
+        local oneButton = self.window and self.window:recursiveGetChildById("oneButton")
+        if oneButton then
+            oneButton:setOn(false)
+        end
+    end
+
+    self.filters[buttonId] = not self.filters[buttonId]
+
+    -- Update button visual state
+    if self.filters[buttonId] then
+        button:setOn(true)
+    else
+        button:setOn(false)
+    end
+
+    -- Refresh item list with new filters
+    self:refreshItemList()
+end
+
+-- Refresh item list based on current filters and category
+function WeaponProficiency:refreshItemList()
+    if not self.window then
+        return
+    end
+
+    local itemList = self.window:recursiveGetChildById('itemList')
+    if not itemList then
+        return
+    end
+
+    -- Get current category from dropdown
+    local categoryDropdown = self.window:recursiveGetChildById('classFilter')
+    local currentCategory = MarketCategory.WeaponsAll
+
+    if categoryDropdown then
+        local selectedText = categoryDropdown:getText()
+        currentCategory = WeaponStringToCategory[selectedText] or MarketCategory.WeaponsAll
+    end
+
+    -- Sort items by experience (highest first)
+    sortWeaponProficiency(currentCategory)
+
+    -- Get items for current category
+    local items = self.itemList[currentCategory] or {}
+
+    -- Apply filters
+    items = self:applyLevelFilter(items)
+    items = self:applyVocationFilter(items)
+
+    -- Apply 1H/2H filters
+    local oneActive = self.filters["oneButton"]
+    local twoActive = self.filters["twoButton"]
+
+    if oneActive and not twoActive then
+        -- Only show one-handed weapons
+        local filteredItems = {}
+        for _, item in ipairs(items) do
+            local thingType = item.thingType
+            if thingType then
+                local slotType = thingType.getClothSlot and thingType:getClothSlot() or 0
+                if slotType == 6 then
+                    table.insert(filteredItems, item)
+                end
+            else
+                table.insert(filteredItems, item)
+            end
+        end
+        items = filteredItems
+    elseif twoActive and not oneActive then
+        -- Only show two-handed weapons
+        local filteredItems = {}
+        for _, item in ipairs(items) do
+            local thingType = item.thingType
+            if thingType then
+                local slotType = thingType.getClothSlot and thingType:getClothSlot() or 0
+                if slotType == 0 then
+                    table.insert(filteredItems, item)
+                end
+            end
+        end
+        items = filteredItems
+    end
+    -- If both active or neither, show all
+
+    -- Apply search text filter
+    if self.searchFilter and self.searchFilter ~= '' then
+        local searchLower = string.lower(self.searchFilter)
+        local filteredItems = {}
+        for _, item in ipairs(items) do
+            local itemName = item.marketData and item.marketData.name or ""
+            if string.find(string.lower(itemName), searchLower, 1, true) then
+                table.insert(filteredItems, item)
+            end
+        end
+        items = filteredItems
+    end
+
+    itemList:destroyChildren()
+
+    -- Populate items with click handlers. The grid itself owns scrolling, so do
+    -- not cap this to the number of visible cells.
+    local index = 1
+    for _, marketItem in ipairs(items) do
+        local child = g_ui.createWidget("ItemBox", itemList, "widget_" .. index)
+        local itemWidget = child and child:getChildById('item')
+        if itemWidget and marketItem.displayItem then
+            -- Use stored displayId (guaranteed non-zero) instead of displayItem:getId()
+            local displayId = marketItem.displayId or marketItem.originalId
+            local cacheId = marketItem.originalId or displayId
+            itemWidget:setItemId(displayId)
+            if ItemsDatabase and ItemsDatabase.setRarityItem then
+                ItemsDatabase.setRarityItem(itemWidget, itemWidget:getItem())
+            end
+            -- Add tooltip with item name
+            child:setTooltip(marketItem.marketData.name or "")
+
+            -- Add stars based on proficiency level
+            local starPanel = child:getChildById('starsBackground')
+            if starPanel then
+                starPanel:destroyChildren()
+
+                -- Get experience and calculate level
+                local cacheEntry = self.cacheList[cacheId]
+                local exp = cacheEntry and cacheEntry.exp or 0
+                local weaponLevel = ProficiencyData:getCurrentLevelByExp(marketItem.displayItem, exp, false,
+                    marketItem.thingType, marketItem.marketData) or 0
+
+                -- Create star widgets for each level achieved
+                if weaponLevel > 0 then
+                    local mastery = isMasteryAchieved(marketItem.displayItem, cacheId, marketItem.thingType,
+                        marketItem.marketData)
+                    for i = 1, weaponLevel do
+                        local star = g_ui.createWidget("MiniStar", starPanel)
+                        if star and mastery then
+                            star:setImageSource(proficiencyImage("icon-star-tiny-gold"))
+                        end
+                    end
+                end
+            end
+
+            -- Add click handler
+            child.onClick = function()
+                WeaponProficiency:selectItem(displayId, marketItem)
+            end
+        end
+
+        index = index + 1
+    end
+
+    if self.itemListScroll then
+        self.itemListScroll:setValue(0)
+    end
+end
+
+-- Handle category change from dropdown
+function WeaponProficiency:onCategoryChange(dropdown)
+    self:refreshItemList()
+end
+
+-- Select an item from the list
+function WeaponProficiency:selectItem(itemId, marketItem)
+    if not self.window then
+        return
+    end
+
+    -- Use originalId for cache lookups (server uses this ID)
+    local cacheId = marketItem.originalId or itemId
+
+    self.selectedItemId = cacheId -- Use cacheId for proficiency data lookup
+    self.selectedDisplayId = itemId -- Keep display ID for UI
+    self.selectedMarketItem = marketItem
+
+    -- Get the item panel
+    local itemPanel = self.window:recursiveGetChildById('itemPanel')
+    if not itemPanel then
+        return
+    end
+
+    -- Update item display panel
+    local itemNameLabel = itemPanel:getChildById('itemNameTitle')
+    local itemIconWidget = itemPanel:recursiveGetChildById('item')
+    local displayItem = marketItem.displayItem
+
+    -- Ensure displayItem has a valid ID (fix for items where showAs was 0)
+    local actualDisplayId = marketItem.displayId or marketItem.originalId
+    if displayItem and displayItem:getId() == 0 and actualDisplayId > 0 then
+        displayItem:setId(actualDisplayId)
+    end
+
+    if itemNameLabel and marketItem then
+        itemNameLabel:setText(marketItem.marketData.name or "Unknown Item")
+    end
+
+    -- Set item using setItem method
+    if itemIconWidget and displayItem then
+        itemIconWidget:setItem(displayItem)
+    end
+
+    -- Destroy and recreate perk panels for fresh display
+    if self.perkPanel then
+        self.perkPanel:destroyChildren()
+    end
+    if self.bonusDetailPanel then
+        self.bonusDetailPanel:destroyChildren()
+    end
+    if self.starProgressPanel then
+        self.starProgressPanel:destroyChildren()
+    end
+
+    -- Initialize cache entry if not exists
+    if not self.cacheList[cacheId] then
+        self.cacheList[cacheId] = {
+            exp = 0,
+            perks = {}
+        }
+    end
+
+    local currentData = self.cacheList[cacheId]
+    local thingType = marketItem.thingType
+    local marketData = marketItem.marketData
+
+    local vocationDecision = getVocationWarningDecision(marketData, thingType)
+    if self.vocationWarning then
+        self.vocationWarning:setVisible(vocationDecision.showWarning)
+    end
+
+    -- Get proficiency ID using wrapper function, passing thingType and marketData for proper category lookup
+    local proficiencyId = ProficiencyData:getProficiencyIdForItem(displayItem, thingType, marketData)
+    local profEntry = ProficiencyData:getContentById(proficiencyId)
+
+    if profEntry then
+        -- Update experience display
+        self:updateExperienceProgress(currentData.exp, displayItem)
+
+        -- Create star widgets
+        for i = 1, #profEntry.Levels do
+            local starWidget = g_ui.createWidget('StarWidget', self.starProgressPanel)
+            if starWidget then
+                starWidget:setId('starWidget' .. i)
+            end
+        end
+
+        -- Create perk column panels
+        for i, levelData in ipairs(profEntry.Levels) do
+            local perkColumn = g_ui.createWidget('BonusSelectPanel', self.perkPanel)
+            if perkColumn then
+                perkColumn:setId('perkColumn_' .. i)
+                local progress = perkColumn:getChildById('bonusSelectProgress')
+                if progress then
+                    progress:setPercent(0)
+                end
+            end
+
+            local bonusDetail = g_ui.createWidget('BonusDetailPanel', self.bonusDetailPanel)
+            if bonusDetail then
+                bonusDetail:setId('bonusDetail_' .. i)
+            end
+        end
+
+        -- Load saved perks into pendingSelections for UI display
+        self.pendingSelections = {}
+        if currentData.perks and #currentData.perks > 0 then
+            for i, perk in ipairs(currentData.perks) do
+                if type(perk) == "table" and #perk >= 2 then
+                    local level = perk[1]
+                    local perkPos = perk[2]
+                    self.pendingSelections[level] = perkPos
+                end
+            end
+        end
+
+        -- Display perks and update UI
+        self:displayPerks(cacheId, currentData.perks, displayItem)
+    else
+        -- Fallback: show basic info without perks
+        self:updateExperienceProgress(currentData.exp, displayItem)
+    end
+
+    -- Request proficiency info from server if needed - use cacheId (originalId)
+    sendWeaponProficiencyAction(0, cacheId)
+end
+
+-- Display proficiency data for selected item
+function WeaponProficiency:displayProficiencyData(itemId, experience, perks)
+    if not self.window then
+        return
+    end
+    if self.selectedItemId ~= itemId then
+        return
+    end
+
+    local displayItem = self.selectedMarketItem and self.selectedMarketItem.displayItem
+    local thingType = self.selectedMarketItem and self.selectedMarketItem.thingType
+    if not displayItem then
+        return
+    end
+
+    -- Update experience display
+    self:updateExperienceProgress(experience, displayItem)
+
+    -- Get proficiency content using wrapper function (with thingType and marketData)
+    local marketData = self.selectedMarketItem and self.selectedMarketItem.marketData
+    local proficiencyId = ProficiencyData:getProficiencyIdForItem(displayItem, thingType, marketData)
+    local profEntry = ProficiencyData:getContentById(proficiencyId)
+
+    if not profEntry then
+        return
+    end
+
+    local levels = profEntry.Levels or {}
+    local currentLevel = ProficiencyData:getCurrentLevelByExp(displayItem, experience, false, thingType, marketData)
+    local maxExperience = ProficiencyData:getMaxExperience(#levels, displayItem, thingType, marketData)
+    local masteryAchieved = experience >= maxExperience
+
+    -- Update perk columns for each level
+    for i, levelData in ipairs(levels) do
+        local perkColumn = self.perkPanel:getChildById('perkColumn_' .. i)
+        local starWidget = self.starProgressPanel:getChildById('starWidget' .. i)
+
+        if perkColumn then
+            self:updatePerkColumn(perkColumn, levelData, i, currentLevel, perks, experience, displayItem,
+                masteryAchieved, thingType, marketData)
+        end
+
+        if starWidget then
+            self:updateStarWidget(starWidget, i, currentLevel, experience, displayItem, masteryAchieved, thingType,
+                marketData)
+        end
+    end
+
+    -- Update bonus detail panels
+    self:updateBonusDetails(profEntry, perks)
+
+    -- Update item frame
+    self:updateItemAddons(experience, displayItem, masteryAchieved, thingType, marketData)
+end
+
+-- Display perks in the perk panel
+function WeaponProficiency:displayPerks(itemId, perks, displayItem)
+    if not self.window or not self.perkPanel then
+        return
+    end
+
+    if not displayItem then
+        return
+    end
+
+    -- Get proficiency content using wrapper function (with thingType and marketData for proper category lookup)
+    local thingType = self.selectedMarketItem and self.selectedMarketItem.thingType
+    local marketData = self.selectedMarketItem and self.selectedMarketItem.marketData
+    local proficiencyId = ProficiencyData:getProficiencyIdForItem(displayItem, thingType, marketData)
+    local proficiencyContent = ProficiencyData:getContentById(proficiencyId)
+
+    if not proficiencyContent then
+        return
+    end
+
+    -- Use cacheId (originalId) for cache lookups
+    local cacheId = self.selectedMarketItem and self.selectedMarketItem.originalId or itemId
+
+    local levels = proficiencyContent.Levels or {}
+    local experience = self.cacheList[cacheId] and self.cacheList[cacheId].exp or 0
+
+    -- Calculate current level based on experience (starts at 0 if no experience)
+    local currentLevel = ProficiencyData:getCurrentLevelByExp(displayItem, experience, false, thingType, marketData)
+
+    -- Check if mastery is achieved
+    local maxExperience = ProficiencyData:getMaxExperience(#levels, displayItem, thingType, marketData)
+    local masteryAchieved = experience >= maxExperience
+
+    -- Update perk columns for each level
+    for i, levelData in ipairs(levels) do
+        local perkColumn = self.perkPanel:getChildById('perkColumn_' .. i)
+        local starWidget = self.starProgressPanel:getChildById('starWidget' .. i)
+
+        if perkColumn and levelData then
+            self:updatePerkColumn(perkColumn, levelData, i, currentLevel, perks, experience, displayItem,
+                masteryAchieved, thingType, marketData)
+        end
+
+        -- Update star widget
+        if starWidget then
+            self:updateStarWidget(starWidget, i, currentLevel, experience, displayItem, masteryAchieved, thingType,
+                marketData)
+        end
+    end
+
+    -- Update bonus detail panels
+    self:updateBonusDetails(proficiencyContent, perks)
+
+    -- Update item frame/addons based on level
+    self:updateItemAddons(experience, displayItem, masteryAchieved, thingType, marketData)
+end
+
+-- Update a single star widget - matching RTC implementation
+function WeaponProficiency:updateStarWidget(starWidget, levelIndex, currentLevel, experience, displayItem,
+    masteryAchieved, thingType, marketData)
+    if not starWidget then
+        return
+    end
+
+    local starProgress = starWidget:getChildById('starProgress')
+    local starIcon = starWidget:getChildById('star')
+
+    if starProgress then
+        -- Calculate percent for this level (same as perk column)
+        local percent = ProficiencyData:getLevelPercent(experience or 0, levelIndex, displayItem, thingType, marketData)
+        starProgress:setPercent(percent)
+
+        -- Set tooltip with experience info
+        local maxLevelExp = ProficiencyData:getMaxExperienceByLevel(levelIndex, displayItem, thingType, marketData)
+        starProgress:setTooltip(string.format("%s / %s", comma_value(experience or 0), comma_value(maxLevelExp or 0)))
+    end
+
+    -- Update star icon color based on completion (100% = complete)
+    if starIcon then
+        local percent = ProficiencyData:getLevelPercent(experience or 0, levelIndex, displayItem, thingType, marketData)
+        if percent >= 100 then
+            -- Level complete - show gold or silver star
+            local iconType = masteryAchieved and "gold" or "silver"
+            starIcon:setImageSource(proficiencyImage('icon-star-tiny-' .. iconType))
+        else
+            -- Level not complete - show dark star
+            starIcon:setImageSource(proficiencyImage('icon-star-dark'))
+        end
+    end
+end
+
+-- Update item frame/addons based on weapon level
+function WeaponProficiency:updateItemAddons(currentExp, displayItem, masteryAchieved, thingType, marketData)
+    if not self.window then
+        return
+    end
+    if not displayItem then
+        return
+    end
+
+    local weaponLevel = math.min(7, ProficiencyData:getCurrentLevelByExp(displayItem, currentExp, false, thingType,
+        marketData) or 0)
+    local iconLevelWidget = self.window:recursiveGetChildById("iconMasteryLevel")
+    local weaponLevelWidget = self.window:recursiveGetChildById("itemMasteryLevel")
+
+    if iconLevelWidget then
+        iconLevelWidget:setImageSource(proficiencyImage("icon-masterylevel-" .. weaponLevel))
+    end
+
+    if weaponLevelWidget then
+        weaponLevelWidget:setVisible(weaponLevel > 0)
+        if weaponLevel > 0 then
+            local color = masteryAchieved and "gold" or "silver"
+            weaponLevelWidget:setImageSource(proficiencyImage(
+                string.format("icon-masterylevel-%d-%s", weaponLevel, color)))
+        end
+    end
+end
+
+-- Update a single perk column
+function WeaponProficiency:updatePerkColumn(perkColumn, levelData, levelIndex, currentLevel, selectedPerks, experience,
+    displayItem, masteryAchieved, thingType, marketData)
+    if not perkColumn or not levelData then
+        return
+    end
+
+    local perksData = levelData.Perks or {}
+    local perkCount = #perksData
+
+    -- Show appropriate panel based on perk count
+    local oneBonusPanel = perkColumn:getChildById('oneBonusIconPanel')
+    local twoBonusPanel = perkColumn:getChildById('twoBonusIconPanel')
+    local threeBonusPanel = perkColumn:getChildById('threeBonusIconPanel')
+
+    if oneBonusPanel then
+        oneBonusPanel:setVisible(perkCount == 1)
+    end
+    if twoBonusPanel then
+        twoBonusPanel:setVisible(perkCount == 2)
+    end
+    if threeBonusPanel then
+        threeBonusPanel:setVisible(perkCount == 3)
+    end
+
+    -- Determine which panel to use
+    local activePanel = nil
+    if perkCount == 1 and oneBonusPanel then
+        activePanel = oneBonusPanel
+    elseif perkCount == 2 and twoBonusPanel then
+        activePanel = twoBonusPanel
+    elseif perkCount == 3 and threeBonusPanel then
+        activePanel = threeBonusPanel
+    end
+
+    if not activePanel then
+        return
+    end
+
+    -- Store currentPerkPanel reference for later use
+    perkColumn.currentPerkPanel = activePanel
+
+    -- Level is unlocked if we have enough experience
+    local isLevelUnlocked = levelIndex <= currentLevel
+
+    -- Update progress bar for this column.
+    local progressBar = perkColumn:getChildById('bonusSelectProgress')
+    if progressBar then
+        local percent = ProficiencyData:getLevelPercent(experience or 0, levelIndex, displayItem, thingType, marketData)
+        progressBar:setPercent(percent)
+
+        -- Unlock perks if this level is complete (100%)
+        if percent >= 100 then
+            for _, widget in pairs(activePanel:getChildren()) do
+                if widget.blocked then
+                    widget.blocked = false
+                end
+            end
+        end
+    end
+
+    -- Update each perk icon
+    for perkIndex, perkData in ipairs(perksData) do
+        local bonusIcon = activePanel:getChildById('bonusIcon' .. (perkIndex - 1))
+        if bonusIcon then
+            -- Get image source and clip
+            local imagePath, imageClip = ProficiencyData:getImageSourceAndClip(perkData)
+            local iconWidget = bonusIcon:getChildById('icon')
+            local iconGreyWidget = bonusIcon:getChildById('icon-grey')
+            local lockedWidget = bonusIcon:getChildById('locked-perk')
+            local borderWidget = bonusIcon:getChildById('border')
+            local highlightWidget = bonusIcon:getChildById('highlight')
+
+            -- Check if this perk is selected
+            local isSelected = false
+            if selectedPerks and type(selectedPerks) == "table" then
+                -- Format 1: Array format from server/cache: {{level, perkPos}, ...} (1-indexed)
+                if #selectedPerks > 0 and type(selectedPerks[1]) == "table" then
+                    for _, perk in ipairs(selectedPerks) do
+                        if type(perk) == "table" and #perk >= 2 and perk[1] == levelIndex and perk[2] == perkIndex then
+                            isSelected = true
+                            break
+                        end
+                    end
+                    -- Format 2: Indexed format from pendingSelections: {[levelIndex] = perkIndex} (1-indexed)
+                elseif selectedPerks[levelIndex] ~= nil then
+                    isSelected = (selectedPerks[levelIndex] == perkIndex)
+                end
+            end
+
+            -- Set icon images
+            local clipX, clipY = imageClip:match("(%d+)%s+(%d+)")
+            clipX = tonumber(clipX) or 0
+            clipY = tonumber(clipY) or 0
+
+            if iconWidget then
+                iconWidget:setImageSource(imagePath)
+                iconWidget:setImageClip({
+                    x = clipX,
+                    y = clipY,
+                    width = 64,
+                    height = 64
+                })
+            end
+
+            -- Handle grey icon - spell augments use separate -off image, others use Y+64 offset
+            if iconGreyWidget then
+                if perkData.Type == PERK_SPELL_AUGMENT then
+                    -- Spell augments have a separate -off image source
+                    iconGreyWidget:setImageSource(imagePath .. "-off")
+                    iconGreyWidget:setImageClip({
+                        x = clipX,
+                        y = clipY,
+                        width = 64,
+                        height = 64
+                    })
+                else
+                    -- Other perks use Y+64 for grey version
+                    iconGreyWidget:setImageSource(imagePath)
+                    iconGreyWidget:setImageClip({
+                        x = clipX,
+                        y = clipY + 64,
+                        width = 64,
+                        height = 64
+                    })
+                end
+            end
+
+            -- Handle augment overlay icons for spell augments
+            local iconPerks = bonusIcon:getChildById('iconPerks')
+            local iconPerksGrey = bonusIcon:getChildById('iconPerks-grey')
+            if perkData.Type == PERK_SPELL_AUGMENT and perkData.AugmentType then
+                local augmentClip = ProficiencyData:getAugmentIconClip(perkData)
+                local augX = tonumber(augmentClip:match("(%d+)")) or 0
+                if iconPerks then
+                    iconPerks:setVisible(true)
+                    iconPerks:setImageClip({
+                        x = augX,
+                        y = 0,
+                        width = 32,
+                        height = 32
+                    })
+                end
+                if iconPerksGrey then
+                    iconPerksGrey:setVisible(true)
+                    iconPerksGrey:setImageClip({
+                        x = augX,
+                        y = 32,
+                        width = 32,
+                        height = 32
+                    })
+                end
+            else
+                if iconPerks then
+                    iconPerks:setVisible(false)
+                end
+                if iconPerksGrey then
+                    iconPerksGrey:setVisible(false)
+                end
+            end
+
+            -- Show/hide based on unlock state and selection
+            local showColorIcon = isLevelUnlocked and isSelected
+            local showGreyIcon = not isLevelUnlocked or (isLevelUnlocked and not isSelected)
+
+            if iconWidget then
+                iconWidget:setVisible(showColorIcon)
+            end
+
+            if iconGreyWidget then
+                iconGreyWidget:setVisible(showGreyIcon)
+                iconGreyWidget:setOpacity(1.0)
+            end
+
+            -- Handle augment overlay icons visibility for spell augments
+            local iconPerks = bonusIcon:getChildById('iconPerks')
+            local iconPerksGrey = bonusIcon:getChildById('iconPerks-grey')
+            if perkData.Type == PERK_SPELL_AUGMENT then
+                if iconPerks then
+                    iconPerks:setVisible(showColorIcon)
+                end
+                if iconPerksGrey then
+                    iconPerksGrey:setVisible(showGreyIcon)
+                    iconPerksGrey:setOpacity(1.0)
+                end
+            end
+
+            -- Show locked icon if level not reached
+            if lockedWidget then
+                lockedWidget:setVisible(not isLevelUnlocked)
+            end
+
+            -- Update border based on state
+            if borderWidget then
+                if isSelected and isLevelUnlocked then
+                    borderWidget:setImageSource(proficiencyImage('border-weaponmasterytreeicons-active'))
+                else
+                    borderWidget:setImageSource(proficiencyImage('border-weaponmasterytreeicons-inactive'))
+                end
+            end
+
+            -- Highlight selected perk
+            if highlightWidget then
+                highlightWidget:setVisible(isSelected and isLevelUnlocked)
+            end
+
+            -- Set tooltip
+            local bonusName, bonusTooltip = ProficiencyData:getBonusNameAndTooltip(perkData)
+            bonusIcon:setTooltip(string.format("%s\n\n%s", bonusName, bonusTooltip))
+
+            -- Store perk data for later use
+            bonusIcon.perkData = perkData
+            bonusIcon.blocked = not isLevelUnlocked
+            bonusIcon.locked = false
+            bonusIcon.active = isSelected
+            bonusIcon.levelIndex = levelIndex
+            bonusIcon.perkIndex = perkIndex
+
+            -- Add click handler for selecting perk
+            bonusIcon.onClick = function(widget)
+                if widget.blocked then
+                    return
+                end
+                WeaponProficiency:onPerkClick(widget)
+            end
+        end
+    end
+end
+
+-- Handle perk icon click
+function WeaponProficiency:onPerkClick(bonusIcon)
+    if not bonusIcon then
+        return
+    end
+
+    local levelIndex = bonusIcon.levelIndex
+    local perkIndex = bonusIcon.perkIndex
+
+    -- Initialize pending selections if not exists
+    if not self.pendingSelections then
+        self.pendingSelections = {}
+    end
+
+    -- Get currently saved perk for this level from cache
+    local savedPerk = nil
+    if self.selectedItemId and self.cacheList[self.selectedItemId] then
+        local cachedPerks = self.cacheList[self.selectedItemId].perks or {}
+        for _, perk in ipairs(cachedPerks) do
+            if type(perk) == "table" and perk[1] == levelIndex then
+                savedPerk = perk[2]
                 break
             end
         end
     end
 
-    -- Habilita ou desabilita os botões
-    local applyButton = self.window:getChildById("apply")
-    local okButton = self.window:getChildById("ok")
-	local closeButton = self.window:getChildById("close")
+    -- Determine if this click changes from saved state
+    local currentSelection = self.pendingSelections[levelIndex] or savedPerk
 
-	if canChangeWeaponPerks() and not allPerksMatch then
-		local resetButton = self.window:getChildById("reset")
-		resetButton:setOn(true)
-		resetButton:setTooltip("Reset your perks")
-	end
+    if currentSelection == perkIndex then
+        -- Clicking on already selected perk - check if we should deselect or revert to saved
+        if savedPerk == perkIndex then
+            -- This is the saved perk, clicking it again does nothing (can't deselect saved perks)
+        else
+            -- This was a pending selection, deselect it (revert to saved or none)
+            self.pendingSelections[levelIndex] = nil
+        end
+    else
+        -- Selecting a different perk for this level
+        if perkIndex == savedPerk then
+            -- Reverting to saved perk - remove from pending
+            self.pendingSelections[levelIndex] = nil
+        else
+            -- New selection different from saved
+            self.pendingSelections[levelIndex] = perkIndex
+        end
+    end
 
-	local tooltip = not allPerksMatch and "No changes have been made to your perks." or "Apply changes to your perks"
+    -- Update visual state for all perks in this level column
+    self:updatePerkVisualState(levelIndex)
 
-    applyButton:setOn(not allPerksMatch)
-    okButton:setOn(not allPerksMatch)
-	applyButton:setTooltip(tooltip)
-	okButton:setTooltip(tooltip)
+    -- Update button states
+    self:updateApplyButtonState()
+end
 
-	closeButton:setText(not allPerksMatch and "Cancel" or "Close")
-	self.saveWeaponMissing = not allPerksMatch
+-- Update visual state for perks in a level column
+function WeaponProficiency:updatePerkVisualState(levelIndex)
+    local perkColumn = self.perkPanel:getChildById('perkColumn_' .. levelIndex)
+    if not perkColumn or not perkColumn.currentPerkPanel then
+        return
+    end
+
+    -- Get pending selection first, then fall back to cached perk
+    local selectedPerkIndex = self.pendingSelections and self.pendingSelections[levelIndex]
+
+    -- If no pending selection, check cached perks
+    if not selectedPerkIndex and self.selectedItemId and self.cacheList[self.selectedItemId] then
+        local cachedPerks = self.cacheList[self.selectedItemId].perks or {}
+        for _, perk in ipairs(cachedPerks) do
+            if type(perk) == "table" and perk[1] == levelIndex then
+                selectedPerkIndex = perk[2]
+                break
+            end
+        end
+    end
+
+    -- Update each perk icon in this column
+    for perkIdx = 0, 2 do
+        local bonusIcon = perkColumn.currentPerkPanel:getChildById('bonusIcon' .. perkIdx)
+        if bonusIcon then
+            local isSelected = (selectedPerkIndex == (perkIdx + 1))
+            local isLevelUnlocked = not bonusIcon.blocked
+
+            local iconWidget = bonusIcon:getChildById('icon')
+            local iconGreyWidget = bonusIcon:getChildById('icon-grey')
+            local borderWidget = bonusIcon:getChildById('border')
+            local highlightWidget = bonusIcon:getChildById('highlight')
+
+            -- Show color icon only if unlocked AND selected
+            if iconWidget then
+                iconWidget:setVisible(isLevelUnlocked and isSelected)
+            end
+
+            if iconGreyWidget then
+                iconGreyWidget:setVisible(not isSelected or not isLevelUnlocked)
+            end
+
+            -- Update border
+            if borderWidget then
+                if isSelected and isLevelUnlocked then
+                    borderWidget:setImageSource(proficiencyImage('border-weaponmasterytreeicons-active'))
+                else
+                    borderWidget:setImageSource(proficiencyImage('border-weaponmasterytreeicons-inactive'))
+                end
+            end
+
+            -- Highlight selected
+            if highlightWidget then
+                highlightWidget:setVisible(isSelected and isLevelUnlocked)
+            end
+
+            bonusIcon.active = isSelected
+        end
+    end
+
+    -- Update bonus detail panel
+    self:updateBonusDetailForLevel(levelIndex)
+end
+
+-- Update bonus detail panel for a specific level
+function WeaponProficiency:updateBonusDetailForLevel(levelIndex)
+    local bonusDetailPanel = self.window:recursiveGetChildById('bonusDetailBackground')
+    if not bonusDetailPanel then
+        return
+    end
+
+    local detailPanel = bonusDetailPanel:getChildById('bonusDetail_' .. levelIndex)
+    if not detailPanel then
+        return
+    end
+
+    local bonusNameWidget = detailPanel:getChildById('bonusName')
+    if not bonusNameWidget then
+        return
+    end
+
+    local selectedPerkIndex = self.pendingSelections and self.pendingSelections[levelIndex]
+
+    if selectedPerkIndex then
+        -- Get perk data from the perk column
+        local perkColumn = self.perkPanel:getChildById('perkColumn_' .. levelIndex)
+        if perkColumn and perkColumn.currentPerkPanel then
+            local bonusIcon = perkColumn.currentPerkPanel:getChildById('bonusIcon' .. (selectedPerkIndex - 1))
+            if bonusIcon and bonusIcon.perkData then
+                local _, tooltip = ProficiencyData:getBonusNameAndTooltip(bonusIcon.perkData)
+                bonusNameWidget:setText(tooltip)
+                bonusNameWidget:setTooltip(tooltip)
+                bonusNameWidget:setImageSource("")
+                return
+            end
+        end
+    end
+
+    -- No selection - show lock icon
+    bonusNameWidget:setText("")
+    bonusNameWidget:setImageSource(proficiencyImage("icon-lock-grey"))
+end
+
+-- Update bonus detail panels at the bottom
+function WeaponProficiency:updateBonusDetails(proficiencyContent, selectedPerks)
+    local bonusDetailPanel = self.window:recursiveGetChildById('bonusDetailBackground')
+    if not bonusDetailPanel then
+        return
+    end
+
+    local levels = proficiencyContent.Levels or {}
+
+    for i = 1, #levels do
+        local detailPanel = bonusDetailPanel:getChildById('bonusDetail_' .. i)
+        if detailPanel then
+            local bonusNameWidget = detailPanel:getChildById('bonusName')
+            local levelData = levels[i]
+
+            if bonusNameWidget and levelData then
+                -- Find selected perk for this level
+                local selectedPerkIndex = nil
+                if selectedPerks and type(selectedPerks) == "table" then
+                    -- Check array format first: {{level, perkPos}, ...} (from cache/server)
+                    local isArrayFormat = false
+                    if #selectedPerks > 0 and type(selectedPerks[1]) == "table" then
+                        isArrayFormat = true
+                        for _, perk in ipairs(selectedPerks) do
+                            if type(perk) == "table" and #perk >= 2 and perk[1] == i then
+                                selectedPerkIndex = perk[2] -- Already 1-indexed from cache
+                                break
+                            end
+                        end
+                    end
+
+                    -- Check indexed format: {[levelIndex] = perkIndex} (from pendingSelections)
+                    if not isArrayFormat and not selectedPerkIndex then
+                        local key = i -- pendingSelections uses 1-indexed level
+                        if selectedPerks[key] ~= nil then
+                            local value = selectedPerks[key]
+                            if type(value) == "number" then
+                                selectedPerkIndex = value -- Already 1-indexed from pendingSelections
+                            end
+                        end
+                    end
+                end
+
+                if selectedPerkIndex then
+                    local perksData = levelData.Perks or {}
+                    local perkData = perksData[selectedPerkIndex]
+                    if perkData then
+                        local _, tooltip = ProficiencyData:getBonusNameAndTooltip(perkData)
+                        bonusNameWidget:setText(tooltip)
+                        bonusNameWidget:setTooltip(tooltip)
+                        bonusNameWidget:setImageSource("") -- Hide lock icon
+                    else
+                        bonusNameWidget:setText("")
+                        bonusNameWidget:setImageSource(proficiencyImage("icon-lock-grey"))
+                    end
+                else
+                    bonusNameWidget:setText("")
+                    bonusNameWidget:setImageSource(proficiencyImage("icon-lock-grey"))
+                end
+            elseif bonusNameWidget then
+                bonusNameWidget:setText("")
+                bonusNameWidget:setImageSource(proficiencyImage("icon-lock-grey"))
+            end
+        end
+    end
+end
+
+-- Handle item box click in the list
+function WeaponProficiency:onItemBoxClick(widget)
+    if not widget then
+        return
+    end
+
+    local itemWidget = widget:getChildById('item')
+    if not itemWidget then
+        return
+    end
+
+    local itemId = itemWidget:getItemId()
+    if not itemId or itemId == 0 then
+        return
+    end
+
+    -- Find the market item data
+    local categoryDropdown = self.window:recursiveGetChildById('classFilter')
+    local currentCategory = MarketCategory.WeaponsAll
+
+    if categoryDropdown then
+        local selectedText = categoryDropdown:getText()
+        currentCategory = WeaponStringToCategory[selectedText] or MarketCategory.WeaponsAll
+    end
+
+    local items = self.itemList[currentCategory] or {}
+    local marketItem = nil
+
+    for _, item in ipairs(items) do
+        if item.displayItem and item.displayItem:getId() == itemId then
+            marketItem = item
+            break
+        end
+    end
+
+    if marketItem then
+        self:selectItem(itemId, marketItem)
+    end
+end
+
+-- Apply filter for Level button
+function WeaponProficiency:applyLevelFilter(items)
+    if not self.filters["levelButton"] then
+        return items
+    end
+
+    local player = g_game.getLocalPlayer()
+    if not player then
+        return items
+    end
+
+    local playerLevel = player:getLevel()
+    local filteredItems = {}
+
+    for _, item in ipairs(items) do
+        local requiredLevel = getNumericCall(item.thingType, "getMinimumLevel")
+        if requiredLevel == 0 then
+            requiredLevel = item.marketData.requiredLevel or 0
+        end
+        if playerLevel >= requiredLevel then
+            table.insert(filteredItems, item)
+        end
+    end
+
+    return filteredItems
+end
+
+-- Apply filter for Vocation button
+function WeaponProficiency:applyVocationFilter(items)
+    if not self.filters["vocButton"] then
+        return items
+    end
+
+    local playerVocation = getPlayerWheelVocation()
+    local filteredItems = {}
+
+    for _, item in ipairs(items) do
+        local restrictVocation = item.marketData and item.marketData.restrictVocation or 0
+        local category = item.marketData and item.marketData.category or nil
+
+        if restrictVocation and restrictVocation ~= 0 then
+            if vocationRestrictionMatches(restrictVocation, playerVocation) then
+                table.insert(filteredItems, item)
+            end
+        elseif categoryMatchesPlayerVocation(category) then
+            table.insert(filteredItems, item)
+        end
+    end
+
+    return filteredItems
+end
+
+-- Apply filter for 1H (one-handed) weapons
+function WeaponProficiency:applyOneHandedFilter(items)
+    if not self.filters["oneButton"] then
+        return items
+    end
+
+    local filteredItems = {}
+    for _, item in ipairs(items) do
+        local thingType = item.thingType
+        if thingType then
+            local slotType = thingType:getClothSlot() or 0
+            if slotType == 6 then
+                table.insert(filteredItems, item)
+            end
+        end
+    end
+    return filteredItems
+end
+
+-- Apply filter for 2H (two-handed) weapons
+function WeaponProficiency:applyTwoHandedFilter(items)
+    if not self.filters["twoButton"] then
+        return items
+    end
+
+    local filteredItems = {}
+    for _, item in ipairs(items) do
+        local thingType = item.thingType
+        if thingType then
+            local slotType = thingType:getClothSlot() or 0
+            if slotType == 0 then
+                table.insert(filteredItems, item)
+            end
+        end
+    end
+    return filteredItems
+end
+
+-- Apply button click handler
+function WeaponProficiency:onApplyClick()
+    local success, err = pcall(function()
+        self:applyPendingSelections()
+    end)
+    if not success then
+        -- Log error with context before clearing
+        warn("Failed to apply pending selections: " .. tostring(err))
+        -- Clear pending selections on error to allow closing
+        self.pendingSelections = {}
+        self:updateApplyButtonState()
+    end
+end
+
+-- Ok button click handler
+function WeaponProficiency:onOkClick()
+    -- Apply pending selections if any
+    if self.pendingSelections and next(self.pendingSelections) ~= nil then
+        local success, err = pcall(function()
+            self:applyPendingSelections()
+        end)
+        if not success then
+            -- Log error with context before clearing
+            warn("Failed to apply pending selections in onOkClick: " .. tostring(err))
+            -- Clear on error to allow closing
+            self.pendingSelections = {}
+        end
+    end
+    -- Always close window, even if there was an error
+    hide()
+end
+
+-- Reset button click handler
+function WeaponProficiency:onResetClick()
+    self.pendingSelections = {}
+
+    -- Send empty perks list to server to clear all perks
+    -- This is more reliable than using action type 2 (reset)
+    if self.selectedItemId then
+        -- Send empty arrays to clear all perks
+        sendWeaponProficiencyApply(self.selectedItemId, {}, {})
+    end
+
+    -- Clear local cache and refresh display
+    if self.selectedItemId and self.selectedMarketItem then
+        local displayItem = self.selectedMarketItem.displayItem
+        local cacheData = self.cacheList[self.selectedItemId]
+        if displayItem and cacheData then
+            -- Clear cached perks since we reset them
+            cacheData.perks = {}
+            self:displayPerks(self.selectedItemId, cacheData.perks, displayItem)
+        end
+    end
+
+    self:updateApplyButtonState()
+end
+
+-- Apply pending perk selections to server
+function WeaponProficiency:applyPendingSelections()
+    if not self.selectedItemId then
+        return
+    end
+
+    -- Build complete perk selection list for server
+    -- Start with cached perks (already saved on server)
+    local allPerks = {} -- {[levelIndex] = perkIndex} in 1-indexed format
+
+    -- First, load existing cached perks
+    if self.cacheList[self.selectedItemId] and self.cacheList[self.selectedItemId].perks then
+        for _, perk in ipairs(self.cacheList[self.selectedItemId].perks) do
+            if type(perk) == "table" and #perk >= 2 then
+                allPerks[perk[1]] = perk[2] -- level -> perkIndex (1-indexed)
+            end
+        end
+    end
+
+    -- Then, merge with pending selections (these override cached perks)
+    if self.pendingSelections then
+        for levelIndex, perkIndex in pairs(self.pendingSelections) do
+            allPerks[levelIndex] = perkIndex -- level -> perkIndex (1-indexed)
+        end
+    end
+
+    -- Convert to array format for sending: {level (0-indexed), perkPosition (0-indexed)}
+    local selections = {}
+    for levelIndex, perkIndex in pairs(allPerks) do
+        table.insert(selections, {levelIndex - 1, perkIndex - 1})
+    end
+
+    -- Sort by level for consistency
+    table.sort(selections, function(a, b)
+        return a[1] < b[1]
+    end)
+
+    if #selections == 0 then
+        return
+    end
+
+    -- Build two parallel arrays for C++ (levels and perkPositions)
+    local levels = {}
+    local perkPositions = {}
+
+    -- Log selection details (0-indexed in Lua, will be converted to 1-indexed in C++)
+    for i, sel in ipairs(selections) do
+        table.insert(levels, sel[1])
+        table.insert(perkPositions, sel[2])
+    end
+
+    -- Send to server using the protocol function with two parallel arrays
+    -- g_game.sendWeaponProficiencyApply(itemId, levelsArray, perkPositionsArray)
+    sendWeaponProficiencyApply(self.selectedItemId, levels, perkPositions)
+
+    -- Update cache with ALL applied perks (convert back to server format: 1-indexed)
+    -- This includes both cached perks and new pending selections
+    if self.cacheList[self.selectedItemId] then
+        local appliedPerks = {}
+        for _, sel in ipairs(selections) do
+            table.insert(appliedPerks, {sel[1] + 1, sel[2] + 1}) -- Convert back to 1-indexed for cache
+        end
+        self.cacheList[self.selectedItemId].perks = appliedPerks
+
+        -- Clear pendingSelections - perks are now saved in cache, no longer "pending"
+        self.pendingSelections = {}
+
+        -- Update UI immediately with applied perks (using cache format)
+        -- This keeps the visual selection active
+        if self.selectedMarketItem and self.selectedMarketItem.displayItem then
+            self:displayPerks(self.selectedItemId, appliedPerks, self.selectedMarketItem.displayItem)
+        end
+
+        -- Update button states (Apply should be disabled since we just applied)
+        self:updateApplyButtonState()
+
+        -- Clear the hasUnusedPerk flag and hide highlight after applying
+        -- The user has now used their perks, so no notification needed
+        self.hasUnusedPerk = false
+        updateProficiencyHighlight()
+
+        -- Request updated proficiency info from server to confirm
+        scheduleEvent(function()
+            if self.selectedItemId then
+                sendWeaponProficiencyAction(0, self.selectedItemId)
+            end
+        end, 200)
+    end
+
+    -- Pending selections already cleared above
+end
+
+-- Update Apply/Ok/Reset button enabled state based on pending selections
+function WeaponProficiency:updateApplyButtonState()
+    if not self.window then
+        return
+    end
+
+    local applyBtn = self.window:getChildById('apply')
+    local okBtn = self.window:getChildById('ok')
+    local resetBtn = self.window:getChildById('reset')
+
+    local hasPendingSelections = self.pendingSelections and next(self.pendingSelections) ~= nil
+
+    -- Check if there are applied perks in cache
+    local hasAppliedPerks = false
+    if self.selectedItemId and self.cacheList[self.selectedItemId] then
+        local cachedPerks = self.cacheList[self.selectedItemId].perks
+        hasAppliedPerks = cachedPerks and #cachedPerks > 0
+    end
+
+    -- Apply/Ok: enabled when there are pending selections (changes to apply)
+    if applyBtn then
+        applyBtn:setEnabled(hasPendingSelections)
+    end
+    if okBtn then
+        okBtn:setEnabled(true) -- Always enabled to allow closing
+    end
+
+    -- Reset: enabled when there are applied perks
+    if resetBtn then
+        resetBtn:setEnabled(hasAppliedPerks)
+    end
 end
