@@ -14,6 +14,9 @@ daySkullWidget = nil
 weekSkullWidget = nil
 monthSkullWidget = nil
 
+local OPCODE_UNJUSTIFIED_REQUEST = 0x2E
+local ACTION_REFRESH = 1
+
 function init()
   connect(g_game, { onGameStart = online,
                     onUnjustifiedPointsChange = onUnjustifiedPointsChange,
@@ -77,7 +80,20 @@ end
 function online()
   local benchmark = g_clock.millis()
   refresh()
+  requestRefresh()
   consoleln("Unjustified Points loaded in " .. (g_clock.millis() - benchmark) / 1000 .. " seconds.")
+end
+
+function requestRefresh()
+  local protocolGame = g_game.getProtocolGame()
+  if not protocolGame then
+    return
+  end
+
+  local msg = OutputMessage.create()
+  msg:addU8(OPCODE_UNJUSTIFIED_REQUEST)
+  msg:addU8(ACTION_REFRESH)
+  protocolGame:send(msg)
 end
 
 function refresh()

@@ -349,36 +349,58 @@ function forceCloseButton(button)
     return true
   end
 
-  if button:getParent():getId() == "spellListWidget" then
-    modules.game_spells.hide()
-  elseif button:getParent():getId() == "skillWheelDialog" then
-    modules.game_wheel:hide()
-  elseif button:getParent():getId() == "questDialog" then
-    modules.game_questlog:hide()
-  elseif button:getParent():getId() == "preyDialog" then
-    modules.game_prey:hide()
-  elseif button:getParent():getId() == "rewardWallDialog" then
-    modules.game_dailyreward:closeDaily()
-  elseif button:getParent():getId() == "compendiumDialog" then
-    modules.game_compendium:hide()
-  elseif button:getParent():getId() == "cyclopediaDialog" then
-    modules.game_cyclopedia:hide()
-  elseif button:getParent():getId() == "bosstiaryDialog" then
-    modules.game_cyclopedia:hide()
-  elseif button:getParent():getId() == "bossslotsDialog" then
-    modules.game_cyclopedia:hide()
-  elseif button:getParent():getId() == "exaltationForgeDialog" then
-    modules.game_forge:hide()
-  elseif button:getParent():getId() == "friendsDialog" then
+  local parentId = button:getParent():getId()
+  
+  if parentId == "spellListWidget" then
+    if modules.game_spells and modules.game_spells.hide then
+      modules.game_spells.hide()
+    end
+  elseif parentId == "skillWheelDialog" then
+    if modules.game_wheel and modules.game_wheel.hide then
+      modules.game_wheel:hide()
+    end
+  elseif parentId == "questDialog" then
+    if modules.game_questlog and modules.game_questlog.hide then
+      modules.game_questlog:hide()
+    end
+  elseif parentId == "preyDialog" then
+    if modules.game_prey and modules.game_prey.hide then
+      modules.game_prey:hide()
+    end
+  elseif parentId == "rewardWallDialog" then
+    if modules.game_dailyreward and modules.game_dailyreward.closeDaily then
+      modules.game_dailyreward:closeDaily()
+    end
+  elseif parentId == "compendiumDialog" then
+    if modules.game_compendium and modules.game_compendium.hide then
+      modules.game_compendium:hide()
+    end
+  elseif parentId == "cyclopediaDialog" or parentId == "bosstiaryDialog" or parentId == "bossslotsDialog" then
+    if modules.game_cyclopedia and modules.game_cyclopedia.hide then
+      modules.game_cyclopedia:hide()
+    end
+  elseif parentId == "exaltationForgeDialog" then
+    if modules.game_forge and modules.game_forge.hideForge then
+      modules.game_forge.hideForge()
+    end
+  elseif parentId == "friendsDialog" then
     -- TODO
-  elseif button:getParent():getId() == "lenshelpFunction" then
-    modules.game_minimap:toggle()
-  elseif button:getParent():getId() == "highscoresDialog" then
-    modules.game_highscores:hide()
-  elseif button:getParent():getId() == "helperDialog" then
-    modules.game_helper:hide()
-  elseif button:getParent():getId() == "manageShortcuts" then
-    m_settings:hide()
+  elseif parentId == "lenshelpFunction" then
+    if modules.game_minimap and modules.game_minimap.toggle then
+      modules.game_minimap:toggle()
+    end
+  elseif parentId == "highscoresDialog" then
+    if modules.game_highscores and modules.game_highscores.hide then
+      modules.game_highscores:hide()
+    end
+  elseif parentId == "helperDialog" then
+    if modules.game_helper and modules.game_helper.hide then
+      modules.game_helper:hide()
+    end
+  elseif parentId == "manageShortcuts" then
+    if m_settings and m_settings.closeOptions then
+      m_settings.closeOptions()
+    end
   end
 end
 

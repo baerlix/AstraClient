@@ -383,16 +383,23 @@ function show()
   end
   g_client.setInputLockWidget(forgeWindow)
 
-
   local player = g_game.getLocalPlayer()
   if not player then
     return
   end
 
-  forgeWindow.sliversPanel.slivers:setText(player:getResourceValue(ResourceForgeSlivers))
-  forgeWindow.exaltedcorePanel.exaltedcore:setText(player:getResourceValue(ResourceForgeExaltedCore))
-  forgeWindow.dustPanel.dust:setText(player:getResourceValue(ResourceForgeDust) .. '/' ..ForgeSystem.maxPlayerDust)
-  forgeWindow.moneyPanel.gold:setText(formatMoney(player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary), ","))
+  if forgeWindow.sliversPanel and forgeWindow.sliversPanel.slivers then
+    forgeWindow.sliversPanel.slivers:setText(player:getResourceValue(ResourceForgeSlivers))
+  end
+  if forgeWindow.exaltedcorePanel and forgeWindow.exaltedcorePanel.exaltedcore then
+    forgeWindow.exaltedcorePanel.exaltedcore:setText(player:getResourceValue(ResourceForgeExaltedCore))
+  end
+  if forgeWindow.dustPanel and forgeWindow.dustPanel.dust then
+    forgeWindow.dustPanel.dust:setText(player:getResourceValue(ResourceForgeDust) .. '/' ..ForgeSystem.maxPlayerDust)
+  end
+  if forgeWindow.moneyPanel and forgeWindow.moneyPanel.gold then
+    forgeWindow.moneyPanel.gold:setText(formatMoney(player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary), ","))
+  end
 end
 
 function loadMenu(menuId)
@@ -452,10 +459,18 @@ function loadMenu(menuId)
   local player = g_game.getLocalPlayer()
   if not player then return end
 
-  forgeWindow.sliversPanel.slivers:setText(player:getResourceValue(ResourceForgeSlivers))
-  forgeWindow.exaltedcorePanel.exaltedcore:setText(player:getResourceValue(ResourceForgeExaltedCore))
-  forgeWindow.dustPanel.dust:setText(player:getResourceValue(ResourceForgeDust) .. '/' ..ForgeSystem.maxPlayerDust)
-  forgeWindow.moneyPanel.gold:setText(formatMoney(player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary), ","))
+  if forgeWindow.sliversPanel and forgeWindow.sliversPanel.slivers then
+    forgeWindow.sliversPanel.slivers:setText(player:getResourceValue(ResourceForgeSlivers))
+  end
+  if forgeWindow.exaltedcorePanel and forgeWindow.exaltedcorePanel.exaltedcore then
+    forgeWindow.exaltedcorePanel.exaltedcore:setText(player:getResourceValue(ResourceForgeExaltedCore))
+  end
+  if forgeWindow.dustPanel and forgeWindow.dustPanel.dust then
+    forgeWindow.dustPanel.dust:setText(player:getResourceValue(ResourceForgeDust) .. '/' ..ForgeSystem.maxPlayerDust)
+  end
+  if forgeWindow.moneyPanel and forgeWindow.moneyPanel.gold then
+    forgeWindow.moneyPanel.gold:setText(formatMoney(player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary), ","))
+  end
 end
 
 function offlineForge()
@@ -478,12 +493,18 @@ function onResourceBalance(type, amount)
   end
 
   if table.contains({ResourceBank, ResourceInventary, ResourceForgeDust, ResourceForgeSlivers, ResourceForgeExaltedCore}, type) then
-    forgeWindow.sliversPanel.slivers:setText(player:getResourceValue(ResourceForgeSlivers))
-    forgeWindow.exaltedcorePanel.exaltedcore:setText(player:getResourceValue(ResourceForgeExaltedCore))
-    forgeWindow.dustPanel.dust:setText(player:getResourceValue(ResourceForgeDust) .. '/' ..ForgeSystem.maxPlayerDust)
-    forgeWindow.moneyPanel.gold:setText(formatMoney(player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary), ","))
+    if forgeWindow and forgeWindow:isVisible() then
+      forgeWindow.sliversPanel.slivers:setText(player:getResourceValue(ResourceForgeSlivers))
+      forgeWindow.exaltedcorePanel.exaltedcore:setText(player:getResourceValue(ResourceForgeExaltedCore))
+      forgeWindow.dustPanel.dust:setText(player:getResourceValue(ResourceForgeDust) .. '/' ..ForgeSystem.maxPlayerDust)
+      forgeWindow.moneyPanel.gold:setText(formatMoney(player:getResourceValue(ResourceBank) + player:getResourceValue(ResourceInventary), ","))
+    end
 
     ForgeSystem.checkFusionButton()
+    ForgeSystem.checkFusionConversionButton()
+    ForgeSystem.checkFusionButtons()
+    ForgeSystem.checkTransferButton()
+    ForgeSystem.checkTransferConvergenceButton()
     ForgeSystem.updateConversion()
   end
 end

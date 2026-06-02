@@ -27,6 +27,16 @@ local flushEvent
 local cachedLines = {}
 local disabled = false
 local allLines = {}
+local rebindHotkeyEvents = {}
+
+local function bindTerminalHotkey()
+  g_keyboard.unbindKeyDown('Ctrl+T', toggle)
+  g_keyboard.bindKeyDown('Ctrl+T', toggle)
+end
+
+local function scheduleHotkeyRebind(delay)
+  table.insert(rebindHotkeyEvents, scheduleEvent(bindTerminalHotkey, delay))
+end
 
 -- private functions
 local function navigateCommand(step)
@@ -136,9 +146,16 @@ end
 -- public functions
 function init()
   terminalWindow = g_ui.displayUI('terminal')
+  terminalWindow:hide()
 
   terminalWindow.onDoubleClick = popWindow
-  g_keyboard.bindKeyDown('Ctrl+T', toggle)
+  if modules.client_topmenu and modules.client_topmenu.addLeftButton then
+    terminalButton = modules.client_topmenu.addLeftButton('terminalButton', tr('Terminal') .. ' (Ctrl + T)', '/images/topbuttons/terminal', toggle)
+    terminalButton:setOn(false)
+  end
+  bindTerminalHotkey()
+  scheduleHotkeyRebind(250)
+  scheduleHotkeyRebind(1000)
 
   commandHistory = g_settings.getList('terminal-history')
 
@@ -179,6 +196,10 @@ function terminate()
   g_settings.setList('terminal-history', commandHistory)
 
   removeEvent(flushEvent)
+  for _, event in ipairs(rebindHotkeyEvents) do
+    removeEvent(event)
+  end
+  rebindHotkeyEvents = {}
 
   if poped then
     oldPos = terminalWindow:getPosition()
@@ -191,9 +212,16 @@ function terminate()
   }
   g_settings.setNode('terminal-window', settings)
 
-  g_keyboard.unbindKeyDown('Ctrl+T')
+  g_keyboard.unbindKeyDown('Ctrl+T', toggle)
   g_logger.setOnLog(nil)
-  terminalWindow:destroy()
+  if terminalWindow then
+    terminalWindow:destroy()
+    terminalWindow = nil
+  end
+  if terminalButton then
+    terminalButton:destroy()
+    terminalButton = nil
+  end
   commandEnv = nil
   _G.terminalLines = allLines
 end
@@ -234,6 +262,7 @@ function popWindow()
 end
 
 function toggle()
+  if not terminalWindow then return end
   if terminalWindow:isVisible() then
     hide()
   else
@@ -251,19 +280,31 @@ function toggle()
 end
 
 function show()
+  if not terminalWindow then return end
   terminalWindow:show()
   terminalWindow:raise()
   terminalWindow:focus()
+  if terminalButton then
+    terminalButton:setOn(true)
+  end
 end
 
 function hide()
+  if not terminalWindow then return end
   terminalWindow:hide()
+  if terminalButton then
+    terminalButton:setOn(false)
+  end
 end
 
 function disable()
   --terminalButton:hide()
-  g_keyboard.unbindKeyDown('Ctrl+T')
+  g_keyboard.unbindKeyDown('Ctrl+T', toggle)
   disabled = true
+end
+
+function bindHotkey()
+  bindTerminalHotkey()
 end
 
 function flushLines()

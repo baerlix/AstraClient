@@ -488,11 +488,6 @@ function registerProtocol()
 	end
   end)
 
-  registerOpcode(ServerPackets.LootStats, function(protocol, msg)
-	readAddItem(msg)
-	msg:getString() -- Item name
-  end)
-
   registerOpcode(ServerPackets.ClientCheck, function(protocol, msg)
 	local size = msg:getU32() -- Data size
 	for i = 1, size do
@@ -547,22 +542,6 @@ function registerProtocol()
 	local marketMenu = msg:getU8() -- ('Show in market')
   end)
 
-  registerOpcode(ServerPackets.KillTracker, function(protocol, msg)
-	msg:getString() -- Name
-	msg:getU16() -- lookType
-	msg:getU8() -- lookHead
-	msg:getU8() -- lookBody
-	msg:getU8() -- lookLegs
-	msg:getU8() -- lookFeet
-	msg:getU8() -- lookAddons
-	local size = msg:getU8() -- Corpse size
-	if size > 0 then
-		for i = 1, size do
-			readAddItem(msg)
-		end
-	end
-  end)
-
   registerOpcode(ServerPackets.UpdateSupplyTracker, function(protocol, msg)
 	msg:getU16() -- Item client ID
   end)
@@ -576,11 +555,6 @@ function registerProtocol()
 			msg:getString() -- Target
 		end
 	end
-  end)
-
-  registerOpcode(ServerPackets.UpdateLootTracker, function(protocol, msg)
-	readAddItem(msg)
-	msg:getString() -- Item name
   end)
 
   registerOpcode(ServerPackets.OpenStashSupply, function(protocol, msg)
@@ -671,6 +645,27 @@ function readAddItem(msg)
 	else
 		msg:getU8()
 	end
+end
+
+function readContainerItems(msg, depth)
+  depth = depth or 1
+  if depth > 4 then
+    msg:getU8()
+    return
+  end
+
+  local itemCount = msg:getU8()
+  for i = 1, itemCount do
+    local clientId = msg:getU16()
+    local thingType = g_things.getThingType(clientId, ThingCategoryItem)
+    if thingType and thingType:isContainer() then
+      readContainerItems(msg, depth + 1)
+    else
+      msg:getU8() -- count
+      msg:getU16() -- worth
+      msg:getString() -- name
+    end
+  end
 end
 
 function unregisterProtocol()

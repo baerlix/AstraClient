@@ -160,7 +160,7 @@ SelectImbue < UIWidget
           anchors.right: parent.right
           @onClick: modules.game_imbuing.ImbuementItem.onSelectSlot(self)
 
-      UIItem
+      BigItem
         id: item
         size: 64 64
         anchors.top: prev.top
@@ -439,7 +439,7 @@ ClearImbue < UIWidget
           anchors.right: parent.right
           @onClick: modules.game_imbuing.ImbuementItem.onSelectSlot(self)
 
-      UIItem
+      BigItem
         id: item
         size: 64 64
         anchors.top: prev.top

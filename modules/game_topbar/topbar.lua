@@ -187,8 +187,8 @@ function refresh(profileChange, skipSetup)
     onManaChange(player, player:getMana(), player:getMaxMana())
     onLevelChange(player, player:getLevel(), player:getLevelPercent())
     onManaShieldChange(player, player:getMagicShield(), player:getMaxMagicShield())
-    onHarmonyChange(player, player:getHarmony())
-    onSerenityChange(player, player:isSerenity())
+    onHarmonyChange(player, player.getHarmony and player:getHarmony() or 0)
+    onSerenityChange(player, player.isSerenity and player:isSerenity() or false)
 
     for i = Skill.Fist, Skill.ManaLeechAmount do
         onSkillChange(player, i, player:getSkillLevel(i), player:getSkillLevelPercent(i))
@@ -784,7 +784,7 @@ function onHarmonyChange(localPlayer, value)
     local harmonyPanel = topBar:recursiveGetChildById('harmony')
     local manaContainer = topBar:recursiveGetChildById('manaContainer')
     local stats = topBar:recursiveGetChildById('stats')
-    local isHarmonyVisible = localPlayer:isMonk()
+    local isHarmonyVisible = localPlayer.isMonk and localPlayer:isMonk() or false
 
     if not harmonyPanel then
         return

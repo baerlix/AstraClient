@@ -122,7 +122,7 @@ function init()
   preyWindow:hide()
   preyTracker = g_ui.createWidget('PreyTracker')
   preyTracker:setup()
-  preyTracker:setContentMaximumHeight(169)
+  preyTracker:setContentMaximumHeight(112)
   preyTracker:setContentMinimumHeight(47)
   preyTracker:close()
 
@@ -246,8 +246,6 @@ function terminate()
     onPreyActive = onPreyActive,
     onPreySelection = onPreySelection
   })
-
-  g_keyboard.unbindKeyPress('Tab', onSelectHunting, preyWindow)
 
   if preyButton then
     preyButton:destroy()
@@ -397,8 +395,6 @@ function hide(ignoreTracker)
     supportWindow = nil
   end
 
-  g_keyboard.unbindKeyPress('Tab', onSelectHunting, preyWindow)
-
   if updateRerollEvent then
     removeEvent(updateRerollEvent)
     updateRerollEvent = nil
@@ -419,7 +415,7 @@ function show(position)
     preyWindow:setPosition(position)
   end
 
-  g_keyboard.bindKeyPress('Tab', onSelectHunting, preyWindow)
+  g_game.preyRequest()
 
 	local localPlayer = g_game.getLocalPlayer()
 	onResourceBalance(ResourceBank, localPlayer:getResourceValue(ResourceBank))
@@ -438,9 +434,7 @@ function toggle()
   if preyWindow:isVisible() then
     return hide(true)
   end
-  preyWindow:show(true)
-  preyWindow:raise()
-  preyWindow:focus()
+  show()
 end
 
 function onPreyFreeRolls(slot, timeleft)
@@ -728,12 +722,6 @@ function onTextEdit(widget)
   updateSearchWildcard(widget:getParent():getParent())
 end
 
-function onSelectHunting()
-	hide(true)
-  g_client.setInputLockWidget(nil)
-	modules.game_prey_hunting.show(preyWindow:getPosition())
-end
-
 function move(panel, height, minimized)
   preyTracker:setParent(panel)
   preyTracker:open()
@@ -758,7 +746,7 @@ function updatePreyWidget(slot, state)
   local preySlot = preyWindow["slot" .. (slot + 1)]
   if slot == 2 then
     preyTrackerSlot:setVisible(true)
-    preyTracker:setContentMaximumHeight(195)
+    preyTracker:setContentMaximumHeight(112)
   end
 
   if state == SLOT_STATE_ACTIVE then
@@ -800,14 +788,6 @@ function updatePreyWidget(slot, state)
     preyTrackerSlot.onClick = function() show() end
   end
 
-  -- hunting
-  for i = 1, 3 do
-    local huntingTrackerSlot = preyTracker.contentsPanel["hslot" .. i]
-    huntingTrackerSlot:setTooltip("Inactive Hunting Task. \n\nClick in this window to open the Prey dialog. Open the Hunting Tasks tab to select a new task.")
-    huntingTrackerSlot.onClick = function() onSelectHunting() end
-    huntingTrackerSlot.noCreature.onClick = function() onSelectHunting() end
-    huntingTrackerSlot.huntingBonus.onClick = function() onSelectHunting() end
-  end
 end
 
 function onRerollButtonAction(slot, freeReroll)
@@ -1086,13 +1066,8 @@ function updateSearchWildcard(prey)
       monsterLabel:setText(string.capitalize(creature[1]))
     end
 
-    if creature and modules.game_prey_hunting.isHuntingActive(creature[1]) then
-      monsterLabel.icon:setVisible(true)
-      monsterLabel:setTextOffset("21 0")
-    else
-      monsterLabel.icon:setVisible(false)
-      monsterLabel:setTextOffset("0 0")
-    end
+    monsterLabel.icon:setVisible(false)
+    monsterLabel:setTextOffset("0 0")
     :: continue ::
   end
 
@@ -1138,13 +1113,8 @@ function onSearchValueChange(scrollbar, value, delta, slot)
       lastSelectedLabel[slot] = monsterLabel
     end
 
-    if creature and modules.game_prey_hunting.isHuntingActive(creature[1]) then
-      monsterLabel.icon:setVisible(true)
-      monsterLabel:setTextOffset("21 0")
-    else
-      monsterLabel.icon:setVisible(false)
-      monsterLabel:setTextOffset("0 0")
-    end
+    monsterLabel.icon:setVisible(false)
+    monsterLabel:setTextOffset("0 0")
     :: continue ::
   end
 end
@@ -1181,13 +1151,8 @@ function onWildcardValueChange(scrollbar, value, delta, slot)
       lastSelectedLabel[slot] = monsterLabel
     end
 
-    if creature and modules.game_prey_hunting.isHuntingActive(creature[1]) then
-      monsterLabel.icon:setVisible(true)
-      monsterLabel:setTextOffset("21 0")
-    else
-      monsterLabel.icon:setVisible(false)
-      monsterLabel:setTextOffset("0 0")
-    end
+    monsterLabel.icon:setVisible(false)
+    monsterLabel:setTextOffset("0 0")
   end
 end
 
@@ -1206,15 +1171,7 @@ function updateWildCardWindow()
       elseif not creatureB then
           return true
       end
-      local hasA = modules.game_prey_hunting.isHuntingActive(creatureA[1])
-      local hasB = modules.game_prey_hunting.isHuntingActive(creatureB[1])
-      if hasA and not hasB then
-          return true
-      elseif not hasA and hasB then
-          return false
-      else
-          return creatureA[1] < creatureB[1]
-      end
+      return creatureA[1] < creatureB[1]
     end)
 
     itemsPool[i] = {}
@@ -1239,9 +1196,8 @@ function updateWildCardWindow()
       if creature then
         monster:setText(string.capitalize(creature[1]))
       end
-      local isInHunting = creature and modules.game_prey_hunting.isHuntingActive(creature[1]) or false
-      monster.icon:setVisible(isInHunting)
-      monster:setTextOffset(isInHunting and "21 0" or "0 0")
+      monster.icon:setVisible(false)
+      monster:setTextOffset("0 0")
       monster.onHoverChange = function(monster, hovered) onSpecialHover("selectionList", bonusType, bonusValue) end
       table.insert(itemsPool[i], monster)
     end

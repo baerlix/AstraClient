@@ -402,10 +402,13 @@ function Character.toggleInspectCharacter(widget)
 	windowPanel.itemsPanel:destroyChildren()
 	windowPanel.itemInfor:destroyChildren()
 	local widget = g_ui.createWidget('InspectCreature', windowPanel.itemsPanel)
-	widget:setOutfit(inspectPlayer.outfit)
+	local outfit = inspectPlayer.outfit or basePlayerData.outfit
+	if outfit then
+		widget:setOutfit(outfit)
+	end
 
-	windowPanel.itemText:setText("You are inspecting: " .. inspectPlayer.name)
-	for _, str in pairs(inspectPlayer.playerData) do
+	windowPanel.itemText:setText("You are inspecting: " .. (inspectPlayer.name or basePlayerData.name or ""))
+	for _, str in pairs(inspectPlayer.playerData or {}) do
 		local widget = g_ui.createWidget('InspectLabel', windowPanel.itemInfor)
 		widget.label:setText(str.detail .. ":")
 		widget.content:setText(str.description)

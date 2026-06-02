@@ -222,9 +222,10 @@ void GraphicalApplication::run()
         }
 
         int frameDelay = m_maxFps <= 0 ? 0 : (1000000 / m_maxFps);
-        if (lastRender + frameDelay > stdext::micros() && !m_mustRepaint) {
+        ticks_t now = stdext::micros();
+        if (lastRender + frameDelay > now && !m_mustRepaint) {
             AutoStat s(STATS_RENDER, "Sleep");
-            stdext::millisleep(1);
+            stdext::microsleep(std::min<ticks_t>(lastRender + frameDelay - now, 1000));
             continue;
         }
 

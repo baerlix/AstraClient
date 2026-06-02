@@ -102,6 +102,9 @@ function init()
   if initCyclopediaProtocol then
     initCyclopediaProtocol()
   end
+  if initBosstiaryProtocol then
+    initBosstiaryProtocol()
+  end
 
   for id, v in ipairs(order) do
     local info = options[v]
@@ -124,6 +127,9 @@ end
 function terminate()
   if terminateCyclopediaProtocol then
     terminateCyclopediaProtocol()
+  end
+  if terminateBosstiaryProtocol then
+    terminateBosstiaryProtocol()
   end
 
 	cyclopediaWindow:hide()
@@ -250,6 +256,10 @@ function toggle()
   else
     Cyclopedia:open()
   end
+end
+
+function hide()
+  Cyclopedia.endGame()
 end
 
 function toggleRedirect(action, raceId)

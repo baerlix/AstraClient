@@ -783,7 +783,7 @@ return {
 	},
 
 	backgroundFrameRate = {
-		value = 500,
+		value = 60,
         apply = function(value)
             if GameOptions:getOption('noFrameCheckBox') then
                 g_app.setMaxFps(0)
@@ -991,9 +991,9 @@ return {
             graphics:recursiveGetChildById("noFrameCheckBox"):setColor(color)
             g_window.setVerticalSync(value)
             if value then
-              g_app.setMaxFps(200) -- allow 240hz monitors
+              g_app.setMaxFps(60)
             else
-              local maxFps = graphics:recursiveGetChildById("backgroundFrameRate"):getValue() or 200
+              local maxFps = graphics:recursiveGetChildById("backgroundFrameRate"):getValue() or 60
               local noFrameLimit = graphics:recursiveGetChildById("noFrameCheckBox")
               if noFrameLimit and noFrameLimit:isChecked() then
                 maxFps = 0
@@ -1381,13 +1381,13 @@ return {
               local vsync = graphics:recursiveGetChildById("vsync")
               if vsync and vsync:isChecked() then
                   g_window.setVerticalSync(true)
-                  g_app.setMaxFps(300)
+                  g_app.setMaxFps(60)
               else
                 local currentFps = TempOptions:getOption('backgroundFrameRate') ~= nil and TempOptions:getOption('backgroundFrameRate') or nil
                 if not currentFps then
                   currentFps = GameOptions:getOption('backgroundFrameRate') ~= nil and GameOptions:getOption('backgroundFrameRate') or nil
                 end
-                g_app.setMaxFps(currentFps and currentFps or 200)
+                g_app.setMaxFps(currentFps and currentFps or 60)
               end
             end
 

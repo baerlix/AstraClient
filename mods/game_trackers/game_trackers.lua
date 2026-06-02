@@ -74,6 +74,9 @@ end
 function online()
 	local benchmark = g_clock.millis()
 	ImbuementTracker.online()
+	if g_game.isOnline() then
+		g_game.openBosstiaryWindow()
+	end
 	consoleln("Trackers loaded in " .. (g_clock.millis() - benchmark) / 1000 .. " seconds.")
 end
 

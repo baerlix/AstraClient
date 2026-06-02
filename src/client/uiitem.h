@@ -36,6 +36,7 @@ public:
     void setItemId(int id);
     void setItemCount(int count);
     void setItemSubType(int subType);
+    void setVirtualCount(const std::string& count) { m_virtualCount = count; }
     void setItemVisible(bool visible) { m_itemVisible = visible; }
     void setItem(const ItemPtr& item);
     void setVirtual(bool virt) { m_virtual = virt; }
@@ -66,6 +67,7 @@ protected:
     stdext::boolean<false> m_showCountAlways;
     std::string m_shader;
     std::string m_countText;
+    std::string m_virtualCount;
 
     ticks_t m_lastDecayUpdate;
     std::string m_decayText;

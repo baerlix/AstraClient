@@ -3131,41 +3131,8 @@ void ProtocolGame::parseImbuementWindow(const InputMessagePtr& msg)
         }
         case Otc::IMBUEMENT_WINDOW_SELECT_ITEM: {
             const uint16_t itemId = msg->getU16();
-            const ItemPtr item = Item::create(itemId);
-            std::string itemName = item ? item->getName() : std::string();
-            uint8_t tier = 0;
-
-            const int itemMetaPos = msg->getReadPos();
-            bool readItemNameFromPacket = false;
-            if (msg->getUnreadSize() >= 2) {
-                const uint16_t itemNameLength = msg->peekU16();
-                if (itemNameLength >= 3 && itemNameLength <= 80 && msg->getUnreadSize() >= itemNameLength + 4) {
-                    const std::string candidateName = msg->getString();
-                    bool printableName = true;
-                    for (const unsigned char ch : candidateName) {
-                        if (ch < 32 || ch == 127) {
-                            printableName = false;
-                            break;
-                        }
-                    }
-
-                    if (printableName) {
-                        itemName = candidateName;
-                        tier = msg->getU8();
-                        readItemNameFromPacket = true;
-                    } else {
-                        msg->setReadPos(itemMetaPos);
-                    }
-                }
-            }
-
-            if (!readItemNameFromPacket) {
-                const bool hasUpgradeClassification = item && item->rawGetThingType() && item->rawGetThingType()->getClassification() > 0;
-                if (hasUpgradeClassification && msg->getUnreadSize() > 1) {
-                    tier = msg->getU8();
-                }
-            }
-
+            const std::string& itemName = msg->getString();
+            const uint8_t tier = msg->getU8();
             const uint8_t slots = msg->getU8();
             std::map<int, std::tuple<Imbuement, int, int>> activeSlots;
             for (int i = 0; i < slots; ++i) {
@@ -3359,12 +3326,26 @@ void ProtocolGame::parseLootContainers(const InputMessagePtr& msg)
 
 void ProtocolGame::parseSupplyStash(const InputMessagePtr& msg)
 {
-    int size = msg->getU16();
-    for (int i = 0; i < size; ++i) {
+    constexpr uint16_t SupplyStashDetailsMarker = 0x5353;
+
+    const uint16_t size = msg->getU16();
+    for (uint16_t i = 0; i < size; ++i) {
         msg->getU16(); // item id
-        msg->getU32(); // unknown
+        msg->getU32(); // amount
+        msg->getU8(); // tier
     }
-    msg->getU16(); // available slots?
+
+    msg->getU16(); // available slots
+    if (msg->getUnreadSize() >= 4 && msg->peekU16() == SupplyStashDetailsMarker) {
+        msg->getU16();
+        const uint16_t detailCount = msg->getU16();
+        for (uint16_t i = 0; i < detailCount; ++i) {
+            msg->getU16(); // item id
+            msg->getString(); // item name
+            msg->getU16(); // category
+            msg->getU8(); // stackable
+        }
+    }
 }
 
 void ProtocolGame::parseSpecialContainer(const InputMessagePtr& msg)

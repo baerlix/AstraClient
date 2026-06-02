@@ -92,7 +92,7 @@ function Bosstiary.configureBossList(data, text)
 
 	-- Insert outfit
 	for _, v in pairs(data) do
-		v[5] = monsterList[v[1]] or {}
+		v[5] = v[5] or getCyclopediaMonster(v[1]) or monsterList[v[1]] or {}
 	end
 
 	table.sort(data, function(a, b)
@@ -188,6 +188,7 @@ function Bosstiary.onBosstiaryWindowData(data)
 	if rawBosstiaryData then
 		-- already opened
 		rawBosstiaryData = data
+		Bosstiary.updateTracker()
 		return
 	end
 
@@ -210,6 +211,32 @@ function Bosstiary.onBosstiaryWindowData(data)
 
 	if searchField then
 		searchField:focus()
+	end
+	Bosstiary.updateTracker()
+end
+
+function Bosstiary.updateTracker()
+	if not rawBosstiaryData then
+		return
+	end
+
+	local trackerList = {}
+	for _, v in ipairs(rawBosstiaryData) do
+		local bossID = v[1]
+		local category = v[2]
+		local kills = v[3]
+		local isTracked = v[4]
+		if isTracked == 1 then
+			local baseKill = baseKillData[category + 1]
+			if baseKill then
+				table.insert(trackerList, {bossID, kills, baseKill.firstUnlock, baseKill.secondUnlock, baseKill.thirdUnlock})
+			end
+		end
+	end
+
+	if modules.game_trackers then
+		modules.game_trackers.BossTrackerList = trackerList
+		modules.game_trackers.BossTracker.showTrackerData()
 	end
 end
 
@@ -401,8 +428,8 @@ end
 
 function Bosstiary.checkBosstiaryTrack(widget, checked, monsterId)
   if monsterId == nil then
-    g_game.sendMonsterTracker(widget:getParent().monster.outfit:getRaceID(), widget:isChecked())
+    g_game.sendBosstiaryTracker(widget:getParent().monster.outfit:getRaceID(), widget:isChecked())
   else
-    g_game.sendMonsterTracker(monsterId, checked)
+    g_game.sendBosstiaryTracker(monsterId, checked)
   end
 end

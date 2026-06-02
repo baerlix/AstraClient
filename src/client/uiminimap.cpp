@@ -67,7 +67,8 @@ bool UIMinimap::setZoom(int zoom)
         m_scale = 1.0f * (1 << std::abs(zoom));
     else
         m_scale = 1;
-    m_layout->update();
+    if (m_layout)
+        m_layout->update();
 
     onZoomChange(zoom, oldZoom);
     return true;
@@ -82,9 +83,13 @@ void UIMinimap::setupHouse(uint32 houseId)
 
 void UIMinimap::setCameraPosition(const Position& pos)
 {
+    if (!pos.isValid() || pos == m_cameraPosition)
+        return;
+
     Position oldPos = m_cameraPosition;
     m_cameraPosition = pos;
-    m_layout->update();
+    if (m_layout)
+        m_layout->update();
 
     onCameraPositionChange(pos, oldPos);
 }

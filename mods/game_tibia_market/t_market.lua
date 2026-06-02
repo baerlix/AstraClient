@@ -68,6 +68,37 @@ local function getDepotItemKey(itemId, tier)
 	return string.format("%d:%d", itemId or 0, tier or 0)
 end
 
+local function getMarketCategoryName(category)
+	local categories = g_things.getMarketCategories and g_things.getMarketCategories() or {}
+	if categories and categories[category] then
+		return tostring(categories[category])
+	end
+
+	if getObjectCategoryName then
+		local name = getObjectCategoryName(category)
+		if name and name ~= '' then
+			return name
+		end
+	end
+
+	return 'Unassigned'
+end
+
+local function copyMarketData(itemType, itemId, category, name)
+	local source = itemType and itemType:getMarketData() or {}
+	local marketData = {}
+	for key, value in pairs(source or {}) do
+		marketData[key] = value
+	end
+
+	marketData.category = category or marketData.category or MarketCategory.Others
+	marketData.name = name or marketData.name or ('Item ' .. itemId)
+	marketData.showAs = marketData.showAs or itemId
+	marketData.requiredLevel = marketData.requiredLevel or 0
+	marketData.restrictVocation = marketData.restrictVocation or {}
+	return marketData
+end
+
 function init()
   marketWindow = g_ui.displayUI('t_market')
   mainMarket = marketWindow.contentPanel.mainMarket
@@ -338,41 +369,59 @@ function onCoinBalance(coins, transferableCoins)
 	end
 end
 
-function configureList()
+function configureList(serverItems)
 	marketItems = {}
 	for c = MarketCategory.First, MarketCategory.WeaponsAll do
 		marketItems[c] = {}
 	end
 
-	local types = g_things.findThingTypeByAttr(ThingAttrMarket, 0)
-	for _, itemType in pairs(types) do
-		if itemType:getId() == 49870 or itemType:getId() == 14258 then
-			goto continue
+	local addedItems = {}
+	local function addMarketItem(itemId, category, name)
+		itemId = tonumber(itemId)
+		if not itemId or addedItems[itemId] or itemId == 49870 or itemId == 14258 then
+			return
 		end
 
-		local item = Item.create(itemType:getId())
-		if item then
+		category = tonumber(category) or MarketCategory.Others
+		marketItems[category] = marketItems[category] or {}
+
+		local thingType = g_things.getThingType(itemId, ThingCategoryItem) or g_things.getThingType(itemId)
+		local item = Item.create(itemId)
+		if not thingType or not item then
+			return
+		end
+
+		local marketData = copyMarketData(thingType, itemId, category, name)
+		item:setId(marketData.showAs)
+		table.insert(marketItems[category], { displayItem = item, thingType = thingType, marketData = marketData })
+		addedItems[itemId] = true
+	end
+
+	for _, entry in ipairs(serverItems or {}) do
+		if type(entry) == 'table' then
+			addMarketItem(entry.itemId or entry[1], entry.category, entry.name)
+		end
+	end
+
+	local types = g_things.findThingTypeByAttr(ThingAttrMarket, 0)
+	for _, itemType in pairs(types or {}) do
+		local itemId = itemType:getId()
+		if not addedItems[itemId] then
 			local marketData = itemType:getMarketData()
 			if not table.empty(marketData) then
-				item:setId(marketData.showAs)
-				local marketItem = { displayItem = item, thingType = itemType, marketData = marketData }
-				if marketItems[marketData.category] ~= nil then
-					table.insert(marketItems[marketData.category], marketItem)
-				end
+				addMarketItem(itemId, marketData.category, marketData.name)
 			end
 		end
-
-		:: continue ::
 	end
 
 	-- Weapons all category
 	for c = MarketCategory.Ammunition, MarketCategory.WandsRods do
-		for _, data in pairs(marketItems[c]) do
+		for _, data in pairs(marketItems[c] or {}) do
 			table.insert(marketItems[MarketCategory.WeaponsAll], data)
 		end
 	end
 
-	for _, data in pairs(marketItems[MarketCategory.FistWeapons]) do
+	for _, data in pairs(marketItems[MarketCategory.FistWeapons] or {}) do
 		table.insert(marketItems[MarketCategory.WeaponsAll], data)
 	end
 
@@ -389,22 +438,23 @@ function configureList()
 	end
 
 	categoryList = {}
-	for k, v in pairs(g_things.getMarketCategories()) do
-		table.insert(categoryList, {k, tostring(v)})
+	for c = MarketCategory.First, MarketCategory.Last do
+		if marketItems[c] and #marketItems[c] > 0 then
+			table.insert(categoryList, {c, getMarketCategoryName(c)})
+		end
 	end
 
-	table.insert(categoryList, {MarketCategory.WeaponsAll, "Weapons: All"})
+	if marketItems[MarketCategory.WeaponsAll] and #marketItems[MarketCategory.WeaponsAll] > 0 then
+		table.insert(categoryList, {MarketCategory.WeaponsAll, 'Weapons: All'})
+	end
+
 	table.sort(categoryList, function(a, b) return a[2] < b[2] end)
 end
 
 -- Main Window
 function onMarketEnter(offerCount, items)
-	configureList()
+	configureList(items)
 	depotLockerItems = items
-
-	if marketWindow:isVisible() then
-		return
-	end
 
 	marketWindow.contentPanel.category:destroyChildren()
 
@@ -421,10 +471,14 @@ function onMarketEnter(offerCount, items)
 	end
 
 	local firstWidget = marketWindow.contentPanel.category:getFirstChild()
-	marketWindow.contentPanel.category:moveChildToIndex(firstWidget, 2)
+	if firstWidget then
+		marketWindow.contentPanel.category:moveChildToIndex(firstWidget, 2)
+	end
 
 	local lastWidget = marketWindow.contentPanel.category:getChildById('Weapons: All')
-	marketWindow.contentPanel.category:moveChildToIndex(lastWidget, marketWindow.contentPanel.category:getChildCount())
+	if lastWidget then
+		marketWindow.contentPanel.category:moveChildToIndex(lastWidget, marketWindow.contentPanel.category:getChildCount())
+	end
 
 	marketWindow.contentPanel.classFilter:clearOptions()
 	marketWindow.contentPanel.tierFilter:clearOptions()
@@ -849,7 +903,7 @@ function onSelectChildCategory(widget, selected, keepFilter)
 
 	local tier = sortButtons["tierFilter"] or 0
 	-- Sorted items
-	for i, itemInfo in pairs(marketItems[selected:getActionId()]) do
+	for i, itemInfo in pairs(marketItems[selected:getActionId()] or {}) do
 		if not checkSortMarketOptions(itemInfo) or (showLockerOnly and getDepotItemCount(itemInfo.thingType:getId(), tier) == 0) then
 			goto continue
 		end

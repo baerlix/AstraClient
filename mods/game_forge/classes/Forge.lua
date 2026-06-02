@@ -131,7 +131,6 @@ function ForgeSystem.onForgeData(fusionData, fusionConvergenceData, transferData
 	ForgeSystem.sideButton = false
 
 	local player = g_game.getLocalPlayer()
-	-- update
 	g_game.doThing(false)
 	g_game.requestResource(ResourceBank)
 	g_game.requestResource(ResourceInventary)
@@ -145,6 +144,9 @@ function ForgeSystem.onForgeData(fusionData, fusionConvergenceData, transferData
     transferMenu.itemTransferPanel.mindPanel.convergenceCheckBox:setChecked(false)
 	if not ForgeSystem.inForgeFusion then
 		show()
+		if fusionMenu:isVisible() then
+			ForgeSystem.updateFusion()
+		end
 	end
 end
 
@@ -169,18 +171,26 @@ function ForgeSystem.updateFusion()
 	if fusionMenu.converFusion:isVisible() then
 		data = ForgeSystem.fusionConvergenceData
 	end
-
+	
 	for _, fusion in pairs(data) do
-		local widget = g_ui.createWidget('FusionItemBox', itemPanel)
+		local itemId = fusion[1]
+		local tier = fusion[2]
+		local count = fusion[3]
+		
+		if itemId > 0 then
+			local widget = g_ui.createWidget('FusionItemBox', itemPanel)
 
-		local itemPtr = Item.create(fusion[1], 1)
-		itemPtr:setTier(fusion[2])
+			local itemPtr = Item.create(itemId, 1)
+			if itemPtr then
+				itemPtr:setTier(tier)
 
-		widget.item:setItem(itemPtr)
-		widget.item:setItemCount(fusion[3])
-		widget.itemPtr = itemPtr
+				widget.item:setItem(itemPtr)
+				widget.item:setItemCount(count)
+				widget.itemPtr = itemPtr
 
-		selectedItemFusionRadio:addWidget(widget)
+				selectedItemFusionRadio:addWidget(widget)
+			end
+		end
 	end
 end
 
@@ -231,7 +241,13 @@ local function ConfigureFusionConversionPanel(selectedWidget)
 	local player = g_game.getLocalPlayer()
 
 	local function createConversionWidget(itemPtr, fusion)
-		local firstCategory = getItemCategoryBySlot(fusion[1])
+		local itemId = fusion[1]
+		
+		if itemId <= 0 then
+			return false
+		end
+		
+		local firstCategory = getItemCategoryBySlot(itemId)
 		local secondCategory = getItemCategoryBySlot(itemPtr:getId())
 
 		if (firstCategory == -1 and secondCategory == -1) then
@@ -242,7 +258,7 @@ local function ConfigureFusionConversionPanel(selectedWidget)
 			return false
 		end
 
-		if fusion[1] == itemPtr:getId() and fusion[3] == 1 then
+		if itemId == itemPtr:getId() and fusion[3] == 1 then
 			return false
 		end
 
@@ -253,14 +269,16 @@ local function ConfigureFusionConversionPanel(selectedWidget)
 		local showItemCount = fusion[3]
 
 		local widget = g_ui.createWidget('FusionItemBox', itemsConvergencePanel)
-		local itemPtr = Item.create(fusion[1], 1)
-		itemPtr:setTier(fusion[2])
+		local newItemPtr = Item.create(itemId, 1)
+		if newItemPtr then
+			newItemPtr:setTier(fusion[2])
 
-		widget.item:setItem(itemPtr)
-		widget.item:setItemCount(showItemCount)
-		widget.itemPtr = itemPtr
+			widget.item:setItem(newItemPtr)
+			widget.item:setItemCount(showItemCount)
+			widget.itemPtr = newItemPtr
 
-		selectedItemFusionConvectionRadio:addWidget(widget)
+			selectedItemFusionConvectionRadio:addWidget(widget)
+		end
 	end
 
 	for i = 1, #ForgeSystem.fusionConvergenceData do
@@ -671,20 +689,25 @@ function ForgeSystem.updateTransfer()
 
 	local itemsVec = {}
 	for _, fusion in pairs(data) do
-		if not itemsVec[fusion[1] .. "." ..fusion[2]] then
+		local itemId = fusion[1]
+		local tier = fusion[2]
+		
+		if itemId > 0 and not itemsVec[itemId .. "." .. tier] then
 			local widget = g_ui.createWidget('FusionItemBox', itemPanel)
 
-			local itemPtr = Item.create(fusion[1], 1)
-			itemPtr:setTier(fusion[2])
+			local itemPtr = Item.create(itemId, 1)
+			if itemPtr then
+				itemPtr:setTier(tier)
 
-			widget.item:setItem(itemPtr)
-			widget.item:setItemCount(fusion[3])
-			widget.itemPtr = itemPtr
-			widget.subItems = fusion[4]
+				widget.item:setItem(itemPtr)
+				widget.item:setItemCount(fusion[3])
+				widget.itemPtr = itemPtr
+				widget.subItems = fusion[4]
 
-			selectedItemFusionRadio:addWidget(widget)
+				selectedItemFusionRadio:addWidget(widget)
 
-			itemsVec[fusion[1] .. "." ..fusion[2]] = true
+				itemsVec[itemId .. "." .. tier] = true
+			end
 		end
 	end
 end
@@ -714,17 +737,19 @@ local function ConfigureTransferPanel(selectedWidget)
 
 
 	for item, count in pairs(subItems) do
-		if item == itemPtr:getId() then
+		if item == itemPtr:getId() or item <= 0 then
 			goto continue
 		end
+		
 		local widget = g_ui.createWidget('FusionItemBox', itemsTransferPanel)
-
-		local itemPtr = Item.create(item, 1)
-
-		widget.item:setItem(itemPtr)
-		widget.item:setItemCount(count)
-		widget.itemPtr = itemPtr
-		selectedItemFusionConvectionRadio:addWidget(widget)
+		local newItemPtr = Item.create(item, 1)
+		
+		if newItemPtr then
+			widget.item:setItem(newItemPtr)
+			widget.item:setItemCount(count)
+			widget.itemPtr = newItemPtr
+			selectedItemFusionConvectionRadio:addWidget(widget)
+		end
 		::continue::
 	end
 
@@ -794,17 +819,19 @@ local function ConfigureTransferConvergencePanel(selectedWidget)
 	connect(selectedItemFusionConvectionRadio, { onSelectionChange = onSelectionForgeConversionTransfer })
 
 	for item, count in pairs(subItems) do
-		if item == itemPtr:getId() then
+		if item == itemPtr:getId() or item <= 0 then
 			goto continue
 		end
+		
 		local widget = g_ui.createWidget('FusionItemBox', itemsTransferPanel)
-
-		local itemPtr = Item.create(item, 1)
-
-		widget.item:setItem(itemPtr)
-		widget.item:setItemCount(count)
-		widget.itemPtr = itemPtr
-		selectedItemFusionConvectionRadio:addWidget(widget)
+		local newItemPtr = Item.create(item, 1)
+		
+		if newItemPtr then
+			widget.item:setItem(newItemPtr)
+			widget.item:setItemCount(count)
+			widget.itemPtr = newItemPtr
+			selectedItemFusionConvectionRadio:addWidget(widget)
+		end
 		::continue::
 	end
 

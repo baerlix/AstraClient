@@ -925,6 +925,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<UIItem>("setItemId", &UIItem::setItemId);
     g_lua.bindClassMemberFunction<UIItem>("setItemCount", &UIItem::setItemCount);
     g_lua.bindClassMemberFunction<UIItem>("setItemSubType", &UIItem::setItemSubType);
+    g_lua.bindClassMemberFunction<UIItem>("setVirtualCount", &UIItem::setVirtualCount);
     g_lua.bindClassMemberFunction<UIItem>("setItemVisible", &UIItem::setItemVisible);
     g_lua.bindClassMemberFunction<UIItem>("setItem", &UIItem::setItem);
     g_lua.bindClassMemberFunction<UIItem>("setVirtual", &UIItem::setVirtual);
@@ -1050,6 +1051,8 @@ void Client::registerLuaFunctions()
     g_lua.bindClassStaticFunction<UIProgressRect>("create", [] { return std::make_shared<UIProgressRect>(); });
     g_lua.bindClassMemberFunction<UIProgressRect>("setPercent", &UIProgressRect::setPercent);
     g_lua.bindClassMemberFunction<UIProgressRect>("getPercent", &UIProgressRect::getPercent);
+    g_lua.bindClassMemberFunction<UIProgressRect>("showTime", &UIProgressRect::showTime);
+    g_lua.bindClassMemberFunction<UIProgressRect>("showProgress", &UIProgressRect::showProgress);
 
     g_lua.registerClass<UIGraph, UIWidget>();
     g_lua.bindClassStaticFunction<UIGraph>("create", [] { return std::make_shared<UIGraph>(); });

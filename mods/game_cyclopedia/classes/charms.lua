@@ -73,6 +73,17 @@ local MinorMenu = {
     [21] = {id = 21, name = "Void Inversion", description = " %d%% chance to gain mana instead of losing it when taking mana drain damage.", prices = {[0] = 100, [1] = 150, [2] = 225, }, bonuses = {[0] = 20, [1] = 30, [2] = 40, }},
 }
 
+local function ensureCharmDefaults(menu)
+    for _, charm in pairs(menu) do
+        charm.level = charm.level or 0
+        charm.creatureId = charm.creatureId or 0
+        charm.removePrice = charm.removePrice or 0
+    end
+end
+
+ensureCharmDefaults(MajorMenu)
+ensureCharmDefaults(MinorMenu)
+
 function Charm:setResetPanelVisibility(value)
     local resetContent = VisibleCyclopediaPanel:recursiveGetChildById('resetContent')
     resetContent:getChildById('resetText'):setVisible(value)
@@ -90,7 +101,9 @@ function Charm:configureWidget(charm, charmList)
     local raceId = charm.creatureId
     if raceId ~= 0 then
         local monster = getCyclopediaMonster(raceId)
-        charmItem:recursiveGetChildById('creature'):setOutfit({type = monster[2], auxType = monster[3], head = monster[4], body = monster[5], legs = monster[6], feet = monster[7], addons = monster[8]})
+        if monster then
+            charmItem:recursiveGetChildById('creature'):setOutfit({type = monster[2], auxType = monster[3], head = monster[4], body = monster[5], legs = monster[6], feet = monster[7], addons = monster[8]})
+        end
     end
     return charmItem
 end
@@ -497,7 +510,9 @@ function Charm:onMonsterFocusChange(widget, focused)
     local raceId = tonumber(widget:getId())
     self.raceId = raceId
     local monster = getCyclopediaMonster(raceId)
-    creatureWidget:setOutfit({type = monster[2], auxType = monster[3], head = monster[4], body = monster[5], legs = monster[6], feet = monster[7], addons = monster[8]})
+    if monster then
+        creatureWidget:setOutfit({type = monster[2], auxType = monster[3], head = monster[4], body = monster[5], legs = monster[6], feet = monster[7], addons = monster[8]})
+    end
 
     local selectCreatureButton = VisibleCyclopediaPanel:recursiveGetChildById('selectCreatureButton')
 
@@ -608,7 +623,7 @@ end
 function Charm:getEmptyMajorSlots()
     local charms = {}
     for _, charm in pairs(MajorMenu) do
-        if charm.level > 0 and charm.creatureId == 0 then
+        if (charm.level or 0) > 0 and (charm.creatureId or 0) == 0 then
             table.insert(charms, charm)
         end
     end
@@ -619,7 +634,7 @@ end
 function Charm:getEmptyMinorSlots()
     local charms = {}
     for _, charm in pairs(MinorMenu) do
-        if charm.level > 0 and charm.creatureId == 0 then
+        if (charm.level or 0) > 0 and (charm.creatureId or 0) == 0 then
             table.insert(charms, charm)
         end
     end

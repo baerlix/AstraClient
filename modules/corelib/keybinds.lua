@@ -998,6 +998,10 @@ function KeyBinds:setupAndReset(profile, chatType)
       end
     end
   end
+
+  if modules.client_terminal and modules.client_terminal.bindHotkey then
+    modules.client_terminal.bindHotkey()
+  end
 end
 
 function KeyBinds:setup()
@@ -1035,6 +1039,10 @@ function KeyBinds:setup()
 			end
 		end
 	end
+
+  if modules.client_terminal and modules.client_terminal.bindHotkey then
+    modules.client_terminal.bindHotkey()
+  end
 end
 
 function KeyBinds:offline()

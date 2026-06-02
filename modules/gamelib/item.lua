@@ -10,8 +10,21 @@ Item.getAverageMarketValue = Item.getAverageMarketValue or function(self)
     return 0
 end
 
+Item.getDefaultValue = Item.getDefaultValue or function(self)
+    return 0
+end
+
+Item.getPriceValue = Item.getPriceValue or function(self)
+    local prices = Analyzer and Analyzer.analyzers and Analyzer.analyzers.customPrices or {}
+    return prices[tostring(self:getId())] or prices[self:getId()] or self:getDefaultValue()
+end
+
 Item.isAmmo = Item.isAmmo or function(self)
-    local itemType = g_things.getItemType(self:getId())
+    local id = self:getId()
+    if not id or id == 0 then
+        return false
+    end
+    local itemType = g_things.findItemTypeByClientId(id)
     return itemType and itemType:getCategory() == 4 or false
 end
 

@@ -1484,6 +1484,10 @@ function WeaponProficiency:refreshItemList()
         index = index + 1
     end
 
+    if itemList.updateLayout then
+        itemList:updateLayout()
+    end
+
     if self.itemListScroll then
         self.itemListScroll:setValue(0)
     end

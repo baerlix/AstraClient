@@ -297,7 +297,6 @@ function House.setupMinimap(houseId)
 		minimap:setupHouse(houseId)
 	end
 	if houseId == 0 then
-		RealMap.setCameraPosition(minimap, {x = 0, y = 0, z = 0})
 		return true
 	end
 

@@ -398,12 +398,12 @@ MainWindow
         vertical-scrollbar: itemListScroll
         margin-top: 5
         color: #c0c0c0
-        keep-scroll-range: true
         padding-top: 4
         padding-left: 4
         layout:
           type: grid
           cell-size: 34 34
+          flow: true
           cell-spacing: 3
           num-columns: 5
 

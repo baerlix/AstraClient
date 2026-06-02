@@ -311,6 +311,17 @@ end
 if UIProgressRect then
   local updateProgressRectTimer
 
+  UIProgressRect.showTime = UIProgressRect.showTime or function(self, show)
+    self._showTime = show
+    if not show and self.setText then
+      self:setText('')
+    end
+  end
+
+  UIProgressRect.showProgress = UIProgressRect.showProgress or function(self, show)
+    self._showProgress = show
+  end
+
   UIProgressRect.setDuration = UIProgressRect.setDuration or function(self, duration)
     self._duration = math.max(0, tonumber(duration) or 0)
     self._durationStartedAt = g_clock.millis()
@@ -329,7 +340,7 @@ if UIProgressRect then
     if widget.setPercent then
       widget:setPercent((widget._duration or 0) > 0 and remaining * 100 / widget._duration or 0)
     end
-    if widget.setText then
+    if widget.setText and widget._showTime ~= false then
       widget:setText(remaining > 0 and tostring(math.ceil(remaining / 1000)) or '')
     end
 
@@ -362,6 +373,14 @@ if UIProgressRect then
       self._durationEvent = nil
     end
     self._durationRunning = false
+  end
+end
+
+if UIItem then
+  UIItem.setVirtualCount = UIItem.setVirtualCount or function(self, count)
+    if self.setItemCount then
+      self:setItemCount(tonumber(tostring(count):match('%d+')) or 1)
+    end
   end
 end
 

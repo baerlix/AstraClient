@@ -417,12 +417,12 @@ NewMainWindow
         margin-top: 7
         font: $var-cip-font
         color: $var-text-cip-color
-        keep-scroll-range: true
         padding-top: 4
         padding-left: 4
         layout:
           type: grid
           cell-size: 34 34
+          flow: true
           cell-spacing: 3
           num-columns: 5
 

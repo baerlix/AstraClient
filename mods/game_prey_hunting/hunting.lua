@@ -44,6 +44,9 @@ local PREY_HUNTING_STATE_SELECT = 2
 local PREY_HUNTING_STATE_WILDCARD = 3
 local PREY_HUNTING_STATE_ACTIVE = 4
 local PREY_HUNTING_STATE_REDEEM = 5
+local PREY_HUNTING_BASE_OPCODE = 0xBA
+local PREY_HUNTING_DATA_OPCODE = 0xBB
+local huntingProtocolRegistered = false
 
 local DESC_TYPE = {
 	TYPE_MONSTER_LIST = 1,
@@ -59,6 +62,93 @@ local DESC_TYPE = {
 	TYPE_SLOT_LOCKED = 13,
 	TYPE_SLOT_REROLL = 14
 }
+
+local function parseHuntingBaseData(_, msg)
+	local monsterInfo = {}
+	local rewardData = {}
+	local monsterCount = msg:getU16()
+	for _ = 1, monsterCount do
+		monsterInfo[msg:getU16()] = msg:getU8()
+	end
+
+	local optionCount = msg:getU8()
+	for index = 1, optionCount do
+		rewardData[index] = {
+			difficulty = msg:getU8(),
+			grade = msg:getU8(),
+			nonBestiaryKills = msg:getU16(),
+			nonBestiaryReward = msg:getU16(),
+			fullBestiaryKills = msg:getU16(),
+			fullBestiaryReward = msg:getU16()
+		}
+	end
+
+	onPreyHuntingBaseData(monsterInfo, rewardData)
+	onPreyHuntingPrice(msg:getU32(), msg:getU32(), msg:getU8(), msg:getU8())
+	return true
+end
+
+local function parseHuntingData(_, msg)
+	local slot = msg:getU8()
+	local state = msg:getU8()
+	local lockType
+	local creatureList
+	local currentMonster
+	local unlocked
+	local toKill
+	local killed
+	local stars
+
+	if state == PREY_HUNTING_STATE_LOCKED then
+		lockType = msg:getU8()
+	elseif state == PREY_HUNTING_STATE_SELECT or state == PREY_HUNTING_STATE_WILDCARD then
+		creatureList = {}
+		local creatureCount = msg:getU16()
+		for _ = 1, creatureCount do
+			creatureList[msg:getU16()] = msg:getU8() ~= 0
+		end
+	elseif state == PREY_HUNTING_STATE_ACTIVE or state == PREY_HUNTING_STATE_REDEEM then
+		currentMonster = msg:getU16()
+		unlocked = msg:getU8() ~= 0
+		toKill = msg:getU16()
+		killed = msg:getU16()
+		stars = msg:getU8()
+	end
+
+	onUpdateRerrolTime(slot, msg:getU32())
+	if state == PREY_HUNTING_STATE_LOCKED then
+		onHuntingLockedState(slot, lockType, state)
+	elseif state == PREY_HUNTING_STATE_EXHAUSTED then
+		onHuntingExhaustedState(slot, state)
+	elseif state == PREY_HUNTING_STATE_SELECT then
+		onHuntingSelectState(slot, creatureList, state)
+	elseif state == PREY_HUNTING_STATE_WILDCARD then
+		onHuntingWildcardState(slot, creatureList, state)
+	elseif state == PREY_HUNTING_STATE_ACTIVE or state == PREY_HUNTING_STATE_REDEEM then
+		onHuntingActiveState(slot, currentMonster, unlocked, toKill, killed, stars, state)
+	end
+	return true
+end
+
+local function registerHuntingBaseProtocol()
+	if huntingProtocolRegistered then
+		return
+	end
+	ProtocolGame.unregisterOpcode(PREY_HUNTING_BASE_OPCODE)
+	ProtocolGame.unregisterOpcode(PREY_HUNTING_DATA_OPCODE)
+	ProtocolGame.registerOpcode(PREY_HUNTING_BASE_OPCODE, parseHuntingBaseData)
+	ProtocolGame.registerOpcode(PREY_HUNTING_DATA_OPCODE, parseHuntingData)
+	huntingProtocolRegistered = true
+end
+
+local function unregisterHuntingBaseProtocol()
+	if not huntingProtocolRegistered then
+		return
+	end
+	ProtocolGame.unregisterOpcode(PREY_HUNTING_BASE_OPCODE)
+	ProtocolGame.unregisterOpcode(PREY_HUNTING_DATA_OPCODE)
+	huntingProtocolRegistered = false
+end
 
 function init()
   huntingWindow = g_ui.displayUI('hunting')
@@ -90,6 +180,7 @@ function init()
   end
 
   huntingWindow:hide()
+  registerHuntingBaseProtocol()
 end
 
 function terminate()
@@ -107,6 +198,7 @@ function terminate()
 	onHuntingExhaustedState = onHuntingExhaustedState
   })
 
+  unregisterHuntingBaseProtocol()
   g_keyboard.unbindKeyPress('Tab', onSelectPrey, huntingWindow)
 end
 

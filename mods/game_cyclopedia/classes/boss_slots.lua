@@ -326,7 +326,17 @@ local function updateMonsterName(monsterName)
 end
 
 function BosstiarySlot.showBoostedSlot(data)
+	if not data or not data.raceID or data.raceID == 0 then
+		slotPanel.slot3:setVisible(false)
+		return
+	end
+	slotPanel.slot3:setVisible(true)
+
 	local monster = g_things.getMonsterList()[data.raceID]
+	if not monster then
+		slotPanel.slot3:setVisible(false)
+		return
+	end
 	local baseKill = baseKillData[data.category + 1]
 	local baseReward = baseRewardData[data.category + 1]
 

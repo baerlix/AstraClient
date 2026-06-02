@@ -35,11 +35,15 @@ public:
 
     void setPercent(float percent);
     float getPercent() { return m_percent; }
+    void showTime(bool showTime) { m_showTime = showTime; }
+    void showProgress(bool showProgress) { m_showProgress = showProgress; }
 
 protected:
     void onStyleApply(const std::string& styleName, const OTMLNodePtr& styleNode);
 
     float m_percent;
+    bool m_showTime = true;
+    bool m_showProgress = true;
 };
 
 #endif

@@ -83,6 +83,11 @@ function RealMap.setRegions(minimapWidget, mainAreaId, regions)
 end
 
 function RealMap.setRegion(minimapWidget)
+  if minimapWidget._realMapRegionsLoaded then
+    return
+  end
+  minimapWidget._realMapRegionsLoaded = true
+
   for _, region in pairs(RealMap.regions) do
     local imageId = g_realMinimap.loadRegion(region.image, region.fromPos, 1, 0, 64, region.markedColor, region.areaId)
 
@@ -127,7 +132,9 @@ function RealMap.setRegion(minimapWidget)
 end
 
 function RealMap.setCameraPosition(widget, pos)
-  if not widget or not widget.setCameraPosition or not pos then
+  if not widget or not widget.setCameraPosition or not pos or
+      type(pos.x) ~= "number" or type(pos.y) ~= "number" or type(pos.z) ~= "number" or
+      pos.x <= 0 or pos.y <= 0 or pos.z < 0 or pos.z > 15 then
     return
   end
   widget:setCameraPosition(pos)
@@ -171,14 +178,40 @@ function RealMap.setMarkers()
 end
 
 function RealMap.setUIMarkers(widget)
-  for _, markerInfo in pairs(RealMap.markers) do
-    local filePath = flagToFilePath[markerInfo.icon]
-    if filePath then
-      widget:addWidget(filePath, {width = 11, height = 11}, markerInfo.pos, markerInfo.description)
+  if not widget or widget._realMapMarkersLoading or widget._realMapMarkersLoaded then
+    return
+  end
+
+  widget._realMapMarkersLoading = true
+  local index = 1
+  local chunkSize = 125
+
+  local function loadChunk()
+    if not widget or (widget.isDestroyed and widget:isDestroyed()) then
+      return
+    end
+
+    local lastIndex = math.min(index + chunkSize - 1, #RealMap.markers)
+    for markerIndex = index, lastIndex do
+      local markerInfo = RealMap.markers[markerIndex]
+      local filePath = markerInfo and flagToFilePath[markerInfo.icon]
+      if filePath then
+        widget:addWidget(filePath, {width = 11, height = 11}, markerInfo.pos, markerInfo.description)
+      elseif markerInfo then
+        print(markerInfo.icon, "not loaded!")
+      end
+    end
+
+    index = lastIndex + 1
+    if index <= #RealMap.markers then
+      scheduleEvent(loadChunk, 1)
     else
-      print(markerInfo.icon, "not loaded!")
+      widget._realMapMarkersLoading = false
+      widget._realMapMarkersLoaded = true
     end
   end
+
+  scheduleEvent(loadChunk, 1)
 end
 
 function RealMap.setLevelSeparator(widget, levelSeparator)
