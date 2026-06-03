@@ -49,6 +49,7 @@ function updateFeatures(version)
     g_game.enableFeature(GameSpritesU32)
     g_game.enableFeature(GameDoublePlayerGoodsMoney)
     g_game.enableFeature(GameCreatureIcons)
+    g_game.enableFeature(GameColorizedLootValue)
     -- ItemTierByte is negotiated by the server when optional tier display is enabled.
     g_game.enableFeature(GameProficiency)
     g_game.enableFeature(GameUnjustifiedPoints)

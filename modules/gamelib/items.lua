@@ -34,6 +34,20 @@ ItemsDatabase.fixedValues = ItemsDatabase.fixedValues or {
 
 ItemsDatabase.serverValues = ItemsDatabase.serverValues or {}
 ItemsDatabase.serverDetails = ItemsDatabase.serverDetails or {}
+ItemsDatabase.lootValueState = ItemsDatabase.lootValueState or 1
+
+local function clampLootValueState(value)
+  value = tonumber(value) or 0
+  return math.min(math.max(value, 0), 2)
+end
+
+function g_game.setLootValueState(value)
+  ItemsDatabase.lootValueState = clampLootValueState(value)
+end
+
+g_game.getLootValueState = g_game.getLootValueState or function()
+  return ItemsDatabase.lootValueState
+end
 
 function ItemsDatabase.registerServerItemValue(itemId, value)
   itemId = tonumber(itemId)
@@ -249,6 +263,25 @@ function ItemsDatabase.getRarityFrame(itemOrId, corner)
   return frames[rarity]
 end
 
+function ItemsDatabase.getLootValueState(corner)
+  if corner ~= nil then
+    return corner and 2 or 1
+  end
+
+  local state = ItemsDatabase.lootValueState
+  if g_game.getLootValueState then
+    local ok, value = pcall(function()
+      return g_game.getLootValueState()
+    end)
+
+    if ok then
+      state = value
+    end
+  end
+
+  return clampLootValueState(state)
+end
+
 function ItemsDatabase.setColorLootMessage(text, defaultColor)
   local result = {}
   local lastEnd = 1
@@ -291,7 +324,9 @@ function ItemsDatabase.setRarityItem(widget, item, corner)
     widget.rarityDefaultImageSource = widget:getImageSource()
   end
 
-  local frame = item and ItemsDatabase.getRarityFrame(item, corner)
+  local state = ItemsDatabase.getLootValueState(corner)
+  local enabled = not g_game.getFeature or g_game.getFeature(GameColorizedLootValue)
+  local frame = enabled and state > 0 and item and ItemsDatabase.getRarityFrame(item, state == 2) or nil
   if frame then
     widget:setImageSource(frame)
   elseif widget.rarityDefaultImageSource ~= nil then

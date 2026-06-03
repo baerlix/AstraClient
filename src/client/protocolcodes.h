@@ -174,6 +174,8 @@ namespace Proto {
         GameServerLootContainers            = 192,
         GameServerWeaponProficiencyInfo      = 196,
         GameServerTournamentLeaderboard     = 197,
+        GameServerCustomItemValues          = 198,
+        GameServerCustomItemDetails         = 199,
         GameServerChooseOutfit              = 200,
         GameServerImpactTracker             = 204,
         GameServerItemsPrices               = 205,

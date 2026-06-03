@@ -3,9 +3,10 @@ Module
   description: Game protocol
   author: astraclient
   website: https://github.com/Mateuzkl/AstraClient
+  dependencies: [ gamelib ]
   scripts: [ protocol ]
   sandboxed: true
-  autoload: false
+  autoload: true
   autoload-priority: 500
   @onLoad: init()
   @onUnload: terminate()

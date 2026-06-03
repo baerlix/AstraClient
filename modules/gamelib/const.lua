@@ -317,7 +317,7 @@ GameMapIgnoreCorpseCorrection = 117
 GameDontCacheFiles = 118 -- doesn't work with encryption and compression
 GameBigAurasCenter = 119 -- Automatic negative offset for aura bigger than 32x32
 GameNewUpdateWalk = 120 -- Walk update rate dependant on FPS
-GameNewCreatureStacking = 121 -- Ignore MAX_THINGS limit while adding to tile
+GameColorizedLootValue = 121 -- Mehah/Canary-compatible loot value colouring
 GameCreaturesMana = 122 -- get mana from server for creatures other than Player
 GameQuickLootFlags = 123 -- enables quick loot feature for all protocols
 GameDontMergeAnimatedText = 124
@@ -333,8 +333,9 @@ GameProficiency = 132
 GameLoadTibiaAssets = 133
 GameGroupInMessage = 134
 GameExevoVisHur = 135
+GameNewCreatureStacking = 136 -- Ignore MAX_THINGS limit while adding to tile
 
-LastGameFeature = 136
+LastGameFeature = 137
 
 TextColors = {
   red        = '#F55E5E',

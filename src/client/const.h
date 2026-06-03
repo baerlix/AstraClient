@@ -481,7 +481,7 @@ namespace Otc
         GameDontCacheFiles = 118,
         GameBigAurasCenter = 119,
         GameNewUpdateWalk = 120,
-        GameNewCreatureStacking = 121,
+        GameColorizedLootValue = 121,
         GameCreaturesMana = 122,
         GameQuickLootFlags = 123,
         GameDontMergeAnimatedText = 124,
@@ -496,8 +496,9 @@ namespace Otc
         GameLoadTibiaAssets = 133,
         GameGroupInMessage = 134,
         GameExevoVisHur = 135,
+        GameNewCreatureStacking = 136,
 
-        LastGameFeature = 136
+        LastGameFeature = 137
     };
 
     enum PathFindResult {

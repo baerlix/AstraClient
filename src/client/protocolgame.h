@@ -299,6 +299,8 @@ private:
     void parseDepotState(const InputMessagePtr& msg);
     void parseSupplyTracker(const InputMessagePtr& msg);
     void parseTournamentLeaderboard(const InputMessagePtr& msg);
+    void parseCustomItemValues(const InputMessagePtr& msg);
+    void parseCustomItemDetails(const InputMessagePtr& msg);
     void parseImpactTracker(const InputMessagePtr& msg);
     void parseItemsPrices(const InputMessagePtr& msg);
     void parseLootTracker(const InputMessagePtr& msg);

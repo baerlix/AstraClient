@@ -538,6 +538,12 @@ void ProtocolGame::parseMessage(const InputMessagePtr& msg)
             case Proto::GameServerTournamentLeaderboard:
                 parseTournamentLeaderboard(msg);
                 break;
+            case Proto::GameServerCustomItemValues:
+                parseCustomItemValues(msg);
+                break;
+            case Proto::GameServerCustomItemDetails:
+                parseCustomItemDetails(msg);
+                break;
             case Proto::GameServerItemDetail:
                 parseItemDetail(msg);
                 break;
@@ -3368,6 +3374,93 @@ void ProtocolGame::parseTournamentLeaderboard(const InputMessagePtr& msg)
 {
     msg->getU8();
     msg->getU8();
+}
+
+void ProtocolGame::parseCustomItemValues(const InputMessagePtr& msg)
+{
+    const uint16 count = msg->getU16();
+    for (uint16 i = 0; i < count; ++i) {
+        const uint16 itemId = msg->getU16();
+        const uint32 value = msg->getU32();
+        g_lua.callGlobalField("ItemsDatabase", "registerServerItemValue", itemId, static_cast<double>(value));
+    }
+}
+
+void ProtocolGame::parseCustomItemDetails(const InputMessagePtr& msg)
+{
+    const uint16 itemId = msg->getU16();
+    const uint32 defaultValue = msg->getU32();
+    const uint32 defaultBuyPrice = msg->getU32();
+    const uint32 averageMarketValue = msg->getU32();
+
+    std::vector<std::pair<std::string, std::string>> descriptions;
+    const uint8 descriptionCount = msg->getU8();
+    descriptions.reserve(descriptionCount);
+    for (uint8 i = 0; i < descriptionCount; ++i) {
+        descriptions.emplace_back(msg->getString(), msg->getString());
+    }
+
+    std::vector<std::tuple<std::string, std::string, uint32, uint32, std::string>> npcSaleData;
+    const uint16 npcCount = msg->getU16();
+    npcSaleData.reserve(npcCount);
+    for (uint16 i = 0; i < npcCount; ++i) {
+        auto npcName = msg->getString();
+        auto location = msg->getString();
+        const uint32 buyPrice = msg->getU32();
+        const uint32 salePrice = msg->getU32();
+        auto currencyQuestFlagDisplayName = msg->getString();
+        npcSaleData.emplace_back(npcName, location, buyPrice, salePrice, currencyQuestFlagDisplayName);
+    }
+
+    g_lua.getGlobalField("ItemsDatabase", "registerServerItemDetails");
+    if (!g_lua.isNil()) {
+        g_lua.pushInteger(itemId);
+        g_lua.createTable(0, 6);
+
+        g_lua.pushNumber(static_cast<double>(defaultValue));
+        g_lua.setField("defaultValue");
+        g_lua.pushNumber(static_cast<double>(defaultBuyPrice));
+        g_lua.setField("defaultBuyPrice");
+        g_lua.pushNumber(static_cast<double>(averageMarketValue));
+        g_lua.setField("averageMarketValue");
+        g_lua.pushString(descriptions.empty() ? std::string() : descriptions.front().second);
+        g_lua.setField("description");
+
+        g_lua.createTable(static_cast<int>(descriptions.size()), 0);
+        for (size_t i = 0; i < descriptions.size(); ++i) {
+            g_lua.createTable(0, 2);
+            g_lua.pushString(descriptions[i].first);
+            g_lua.setField("detail");
+            g_lua.pushString(descriptions[i].second);
+            g_lua.setField("description");
+            g_lua.rawSeti(static_cast<int>(i + 1));
+        }
+        g_lua.setField("descriptions");
+
+        g_lua.createTable(static_cast<int>(npcSaleData.size()), 0);
+        for (size_t i = 0; i < npcSaleData.size(); ++i) {
+            const auto& [name, location, buyPrice, salePrice, currencyQuestFlagDisplayName] = npcSaleData[i];
+            g_lua.createTable(0, 5);
+            g_lua.pushString(name);
+            g_lua.setField("name");
+            g_lua.pushString(location);
+            g_lua.setField("location");
+            g_lua.pushNumber(static_cast<double>(buyPrice));
+            g_lua.setField("buyPrice");
+            g_lua.pushNumber(static_cast<double>(salePrice));
+            g_lua.setField("salePrice");
+            g_lua.pushString(currencyQuestFlagDisplayName);
+            g_lua.setField("currencyQuestFlagDisplayName");
+            g_lua.rawSeti(static_cast<int>(i + 1));
+        }
+        g_lua.setField("npcSaleData");
+
+        g_lua.signalCall(2, 0);
+    } else {
+        g_lua.pop();
+    }
+
+    g_lua.callGlobalField("g_game", "onItemDetails", itemId);
 }
 
 void ProtocolGame::parseKillTracker(const InputMessagePtr& msg)
