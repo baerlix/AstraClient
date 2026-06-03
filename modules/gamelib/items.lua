@@ -286,7 +286,11 @@ function ItemsDatabase.setColorLootMessage(text, defaultColor)
   local result = {}
   local lastEnd = 1
 
-  defaultColor = defaultColor or ItemsDatabase.rarityColors.white
+  if type(text) == 'string' and (text:find('^Loot of ') or text:find('^Loot de ')) then
+    defaultColor = ItemsDatabase.rarityColors.green
+  else
+    defaultColor = defaultColor or ItemsDatabase.rarityColors.white
+  end
 
   local function add(textPart, color)
     if textPart and textPart ~= '' then
@@ -324,14 +328,16 @@ function ItemsDatabase.setRarityItem(widget, item, corner)
     widget.rarityDefaultImageSource = widget:getImageSource()
   end
 
-  local state = ItemsDatabase.getLootValueState(corner)
-  local enabled = not g_game.getFeature or g_game.getFeature(GameColorizedLootValue)
-  local frame = enabled and state > 0 and item and ItemsDatabase.getRarityFrame(item, state == 2) or nil
-  if frame then
-    widget:setImageSource(frame)
-  elseif widget.rarityDefaultImageSource ~= nil then
-    widget:setImageSource(widget.rarityDefaultImageSource)
-  end
+  pcall(function()
+    local state = ItemsDatabase.getLootValueState(corner)
+    local enabled = not g_game.getFeature or g_game.getFeature(GameColorizedLootValue)
+    local frame = enabled and state > 0 and item and ItemsDatabase.getRarityFrame(item, state == 2) or nil
+    if frame then
+      widget:setImageSource(frame)
+    elseif widget.rarityDefaultImageSource ~= nil then
+      widget:setImageSource(widget.rarityDefaultImageSource)
+    end
+  end)
 end
 
 local function clampTier(tier, maxTier)

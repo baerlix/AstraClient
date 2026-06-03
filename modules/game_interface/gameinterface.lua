@@ -980,10 +980,12 @@ function createThingMenu(tile, menuPosition, lookThing, useThing, creatureThing)
       end
     end
 
-    if useThing:isCorpse() and not useThing:isPlayerCorpse() then
-      menu:addOption(tr('Loot Corpse'), function() g_game.quickLoot(useThing:getPosition(), useThing:getId(), useThing:getStackPos(), true) end)
-    elseif useThing:inCorpse() then
-      menu:addOption(tr('Loot'), function() g_game.quickLoot(useThing:getPosition(), useThing:getId(), useThing:getStackPos(), false) end)
+    if g_game.getFeature(GameQuickLootFlags) or g_game.getFeature(GameTibia12Protocol) then
+      if useThing:isCorpse() and not useThing:isPlayerCorpse() then
+        menu:addOption(tr('Loot Corpse'), function() g_game.quickLoot(useThing:getPosition(), useThing:getId(), useThing:getStackPos(), true) end)
+      elseif useThing:inCorpse() then
+        menu:addOption(tr('Loot'), function() g_game.quickLoot(useThing:getPosition(), useThing:getId(), useThing:getStackPos(), false) end)
+      end
     end
 
     if useThing:isWrapable() then
@@ -1217,7 +1219,7 @@ function processClassicControl(tile, menuPosition, mouseButton, autoWalkPos, loo
   local config = m_settings.getOption("lootControl")
   local useLoot = (config == 1 and mouseButton == MouseRightButton and not g_keyboard.isShiftPressed() and not g_keyboard.isCtrlPressed()) or (config == 2 and mouseButton == MouseRightButton and g_keyboard.isShiftPressed()) or (config == 3 and mouseButton == MouseLeftButton and not g_keyboard.isShiftPressed() and not g_keyboard.isCtrlPressed())
 
-  if useThing and useLoot then
+  if useThing and useLoot and (g_game.getFeature(GameQuickLootFlags) or g_game.getFeature(GameTibia12Protocol)) then
     if creatureThing and not creatureThing:isPlayer() then
       goto next
     end
@@ -1326,7 +1328,7 @@ end
 function processRegularControl(tile, menuPosition, mouseButton, autoWalkPos, lookThing, useThing, creatureThing, attackCreature, marking)
   local keyboardModifiers = g_keyboard.getModifiers()
 
-  if useThing and g_keyboard.isShiftPressed() and mouseButton == MouseRightButton then
+  if useThing and g_keyboard.isShiftPressed() and mouseButton == MouseRightButton and (g_game.getFeature(GameQuickLootFlags) or g_game.getFeature(GameTibia12Protocol)) then
     if creatureThing and not creatureThing:isPlayer() then
       goto next
     end
@@ -1401,7 +1403,7 @@ function processSmartControl(tile, menuPosition, mouseButton, autoWalkPos, lookT
     return false
   end
 
-  if useThing and g_keyboard.isAltPressed() and mouseButton == MouseLeftButton then
+  if useThing and g_keyboard.isAltPressed() and mouseButton == MouseLeftButton and (g_game.getFeature(GameQuickLootFlags) or g_game.getFeature(GameTibia12Protocol)) then
     if creatureThing and not creatureThing:isPlayer() then
       goto next
     end
