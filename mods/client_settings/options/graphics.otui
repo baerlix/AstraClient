@@ -74,6 +74,38 @@ GraphicsWindow < Panel
     margin-right: 4
 
     SettingsCheckBox
+      id: hdmodeBox
+      size: 12 12
+      !text: tr('HD Sprite Upscaling')
+      font: $var-cip-font
+      text-auto-resize: true
+      color: $var-text-cip-color
+      anchors.left: parent.left
+      anchors.top: parent.top
+      image-source: /images/ui/checkbox
+      image-clip: 0 0 12 12
+      margin-top: 5
+      margin-left: 5
+
+    UIWidget
+      size: 12 12
+      anchors.top: parent.top
+      anchors.right: parent.right
+      margin-right: 5
+      margin-top: 5
+      image-source: /images/skin/show-gui-help-grey
+      !tooltip: tr('Upscales classic 32x32 sprites with the xBRZ filter for a sharper HD look.')
+
+  FlatPanel
+    size: 505 22
+    anchors.top: prev.bottom
+    anchors.right: parent.right
+    anchors.left: parent.left
+    margin-top: 5
+    margin-left: 4
+    margin-right: 4
+
+    SettingsCheckBox
       id: fullscreen
       size: 12 12
       !text: tr('Full Screen Mode')

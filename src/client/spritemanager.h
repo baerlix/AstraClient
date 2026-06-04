@@ -54,6 +54,8 @@ public:
     int spriteSize() { return m_spriteSize; }
     float getOffsetFactor() const { return static_cast<float>(m_spriteSize) / 32.0f; }
     bool isHdMod() const { return m_isHdMod; }
+    void setScaleFactor(int factor);
+    int getScaleFactor() { return m_scaleFactor; }
 
 private:
     bool loadCasualSpr(std::string file);
@@ -61,15 +63,22 @@ private:
 
     ImagePtr getSpriteImageCasual(int id);
     ImagePtr getSpriteImageHd(int id);
+    void clearImageCache();
+    void updateSpriteSize();
+    ImagePtr upscaleSprite(const ImagePtr& sprite, int scaleFactor) const;
+
     bool m_loaded = false;
     bool m_isHdMod = false;
-    uint32 m_signature;
-    int m_spritesCount;
-    int m_spritesOffset;
-    int m_spriteSize;
+    uint32 m_signature = 0;
+    int m_spritesCount = 0;
+    int m_spritesOffset = 0;
+    int m_spriteSize = 64;
+    int m_baseSpriteSize = 32;
+    int m_scaleFactor = 2;
     FileStreamPtr m_spritesFile;
     std::vector<std::vector<uint8_t>> m_sprites;
     std::unordered_map<uint32, std::string> m_cachedData;
+    std::unordered_map<int, ImagePtr> m_imageCache;
 };
 
 extern SpriteManager g_sprites;

@@ -442,6 +442,9 @@ if(FRAMEWORK_GRAPHICS)
         ${CMAKE_CURRENT_LIST_DIR}/graphics/texturemanager.cpp
         ${CMAKE_CURRENT_LIST_DIR}/graphics/texturemanager.h
         ${CMAKE_CURRENT_LIST_DIR}/graphics/vertexarray.h
+        ${CMAKE_CURRENT_LIST_DIR}/graphics/xbrz.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/graphics/xbrz.h
+        ${CMAKE_CURRENT_LIST_DIR}/graphics/xbrz_config.h
         ${CMAKE_CURRENT_LIST_DIR}/graphics/shaders/newshader.h
         ${CMAKE_CURRENT_LIST_DIR}/graphics/shaders/shaders.h
         ${CMAKE_CURRENT_LIST_DIR}/graphics/shaders/shadersources.h
@@ -594,4 +597,3 @@ endif()
 
 include_directories(${framework_INCLUDE_DIRS})
 add_definitions(${framework_DEFINITIONS})
-

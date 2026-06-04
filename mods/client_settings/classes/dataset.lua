@@ -904,6 +904,19 @@ return {
         end,
 	},
 
+	hdmodeBox = {
+		value = true,
+        apply = function(value)
+            if g_sprites and g_sprites.setScaleFactor then
+                g_sprites.setScaleFactor(value and 2 or 1)
+            end
+            if m_interface then
+                m_interface.refreshViewMode()
+            end
+            return true
+        end,
+	},
+
 	showSpells = {
 		value = true,
         apply = function(value)

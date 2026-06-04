@@ -100,6 +100,16 @@ void ThingTypeManager::terminate()
     }
 }
 
+void ThingTypeManager::unloadTextures()
+{
+    for (int category = 0; category < ThingLastCategory; ++category) {
+        for (const ThingTypePtr& thingType : m_thingTypes[category]) {
+            if (thingType)
+                thingType->unload();
+        }
+    }
+}
+
 void ThingTypeManager::check()
 {    
     // removes unused textures from memory after 60s, 500 checks / s

@@ -4040,6 +4040,7 @@
         "actionButtonShowHotkey": true,
         "actionButtonShowSpellParameters": true,
         "antialiasingMode": 2,
+        "hdmodeBox": true,
         "autoChaseEnabled": false,
         "charTradePaymentRemindAgain": 0,
         "characterSelectionShowHidden": true,

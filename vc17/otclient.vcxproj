@@ -560,6 +560,7 @@
     <ClCompile Include="..\src\framework\graphics\textrender.cpp" />
     <ClCompile Include="..\src\framework\graphics\texture.cpp" />
     <ClCompile Include="..\src\framework\graphics\texturemanager.cpp" />
+    <ClCompile Include="..\src\framework\graphics\xbrz.cpp" />
     <ClCompile Include="..\src\framework\http\http.cpp" />
     <ClCompile Include="..\src\framework\http\session.cpp" />
     <ClCompile Include="..\src\framework\http\websocket.cpp" />
@@ -730,6 +731,8 @@
     <ClInclude Include="..\src\framework\graphics\texture.h" />
     <ClInclude Include="..\src\framework\graphics\texturemanager.h" />
     <ClInclude Include="..\src\framework\graphics\vertexarray.h" />
+    <ClInclude Include="..\src\framework\graphics\xbrz.h" />
+    <ClInclude Include="..\src\framework\graphics\xbrz_config.h" />
     <ClInclude Include="..\src\framework\http\http.h" />
     <ClInclude Include="..\src\framework\http\result.h" />
     <ClInclude Include="..\src\framework\http\session.h" />

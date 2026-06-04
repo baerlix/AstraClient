@@ -207,6 +207,9 @@
     <ClCompile Include="..\src\framework\graphics\texturemanager.cpp">
       <Filter>Source Files\framework\graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\framework\graphics\xbrz.cpp">
+      <Filter>Source Files\framework\graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\framework\input\mouse.cpp">
       <Filter>Source Files\framework\input</Filter>
     </ClCompile>
@@ -687,6 +690,12 @@
       <Filter>Header Files\framework\graphics</Filter>
     </ClInclude>
     <ClInclude Include="..\src\framework\graphics\vertexarray.h">
+      <Filter>Header Files\framework\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\framework\graphics\xbrz.h">
+      <Filter>Header Files\framework\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\framework\graphics\xbrz_config.h">
       <Filter>Header Files\framework\graphics</Filter>
     </ClInclude>
     <ClInclude Include="..\src\framework\input\mouse.h">

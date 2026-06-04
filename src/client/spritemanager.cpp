@@ -22,19 +22,30 @@
 
 #include "spritemanager.h"
 #include "game.h"
+#include "thingtypemanager.h"
 #include <framework/core/resourcemanager.h>
 #include <framework/core/filestream.h>
 #include <framework/graphics/image.h>
 #include <framework/graphics/atlas.h>
+#include <framework/graphics/xbrz.h>
 #include <framework/util/crypt.h>
 #include <framework/util/pngunpacker.h>
 
+#include <algorithm>
+
 SpriteManager g_sprites;
+
+namespace
+{
+constexpr int MinScaleFactor = 1;
+constexpr int MaxScaleFactor = 4;
+}
 
 SpriteManager::SpriteManager()
 {
     m_spritesCount = 0;
     m_signature = 0;
+    updateSpriteSize();
 }
 
 void SpriteManager::terminate()
@@ -47,7 +58,13 @@ bool SpriteManager::loadSpr(std::string file)
     m_spritesCount = 0;
     m_signature = 0;
     m_loaded = false;
+    m_isHdMod = false;
+    m_spritesFile = nullptr;
     m_sprites.clear();
+    m_cachedData.clear();
+    clearImageCache();
+    m_baseSpriteSize = 32;
+    updateSpriteSize();
 
     auto cwmFile = g_resources.guessFilePath(file, "cwm");
     if (g_resources.fileExists(cwmFile)) {
@@ -103,7 +120,7 @@ void SpriteManager::saveSpr(std::string fileName)
 
                 uint16 dataSize = m_spritesFile->getU16();
                 fin->addU16(dataSize);
-                std::vector<char> spriteData(m_spriteSize * m_spriteSize);
+                std::vector<char> spriteData(dataSize);
                 m_spritesFile->read(spriteData.data(), dataSize);
                 fin->write(spriteData.data(), dataSize);
 
@@ -123,7 +140,7 @@ void SpriteManager::saveSpr64(std::string fileName)
 {
     if (!m_loaded)
         stdext::throw_exception("failed to save, spr is not loaded");
-    if (!m_spritesFile || m_spriteSize != 32)
+    if (!m_spritesFile || m_baseSpriteSize != 32)
         stdext::throw_exception("not allowed");
 
     try {
@@ -142,7 +159,7 @@ void SpriteManager::saveSpr64(std::string fileName)
             fin->addU32(0);
 
         for (int i = 1; i <= m_spritesCount; i++) {
-            ImagePtr sprite = getSpriteImage(i);
+            ImagePtr sprite = getSpriteImageCasual(i);
             if (!sprite) {
                 continue;
             }
@@ -216,7 +233,7 @@ void SpriteManager::encryptSprites(std::string fileName)
         fin->addU32(m_spritesCount);
 
         for (int i = 1; i <= m_spritesCount; i++) {
-            ImagePtr sprite = getSpriteImage(i);
+            ImagePtr sprite = getSpriteImageCasual(i);
             if (!sprite) {
                 fin->addU16(0);
                 continue;
@@ -298,23 +315,114 @@ void SpriteManager::unload()
 {
     m_spritesCount = 0;
     m_signature = 0;
+    m_loaded = false;
+    m_isHdMod = false;
     m_spritesFile = nullptr;
     m_sprites.clear();
+    m_cachedData.clear();
+    clearImageCache();
+    m_baseSpriteSize = 32;
+    updateSpriteSize();
 }
 
 ImagePtr SpriteManager::getSpriteImage(int id)
 {
+    if (id <= 0 || !m_loaded)
+        return nullptr;
+
     if (m_isHdMod) {
         return getSpriteImageHd(id);
     }
-    else {
+
+    if (m_scaleFactor <= 1) {
         return getSpriteImageCasual(id);
     }
+
+    auto it = m_imageCache.find(id);
+    if (it != m_imageCache.end())
+        return it->second;
+
+    ImagePtr baseSprite = getSpriteImageCasual(id);
+    ImagePtr scaledSprite = upscaleSprite(baseSprite, m_scaleFactor);
+    if (!scaledSprite)
+        return baseSprite;
+
+    m_imageCache[id] = scaledSprite;
+    return scaledSprite;
+}
+
+void SpriteManager::setScaleFactor(int factor)
+{
+    factor = std::clamp(factor, MinScaleFactor, MaxScaleFactor);
+    if (m_scaleFactor == factor)
+        return;
+
+    m_scaleFactor = factor;
+    if (!m_isHdMod)
+        updateSpriteSize();
+
+    clearImageCache();
+
+    if (g_things.isDatLoaded())
+        g_things.unloadTextures();
+}
+
+void SpriteManager::clearImageCache()
+{
+    m_imageCache.clear();
+}
+
+void SpriteManager::updateSpriteSize()
+{
+    m_spriteSize = m_baseSpriteSize * std::max(MinScaleFactor, m_scaleFactor);
+}
+
+ImagePtr SpriteManager::upscaleSprite(const ImagePtr& sprite, int scaleFactor) const
+{
+    if (!sprite || scaleFactor <= 1)
+        return sprite;
+
+    scaleFactor = std::clamp(scaleFactor, MinScaleFactor, MaxScaleFactor);
+    if (sprite->getBpp() != 4)
+        return sprite;
+
+    const int sourceWidth = sprite->getWidth();
+    const int sourceHeight = sprite->getHeight();
+    const int targetWidth = sourceWidth * scaleFactor;
+    const int targetHeight = sourceHeight * scaleFactor;
+    const int pixelCount = sourceWidth * sourceHeight;
+
+    std::vector<uint32_t> sourcePixels(pixelCount);
+    const std::vector<uint8>& sourceData = sprite->getPixels();
+    for (int i = 0; i < pixelCount; ++i) {
+        const int offset = i * 4;
+        sourcePixels[i] = (static_cast<uint32_t>(sourceData[offset + 3]) << 24) |
+                          (static_cast<uint32_t>(sourceData[offset + 0]) << 16) |
+                          (static_cast<uint32_t>(sourceData[offset + 1]) << 8) |
+                          static_cast<uint32_t>(sourceData[offset + 2]);
+    }
+
+    std::vector<uint32_t> targetPixels(targetWidth * targetHeight);
+    xbrz::scale(scaleFactor, sourcePixels.data(), targetPixels.data(), sourceWidth, sourceHeight, xbrz::ColorFormat::ARGB);
+
+    auto upscaledImage = std::make_shared<Image>(Size(targetWidth, targetHeight));
+    std::vector<uint8>& targetData = upscaledImage->getPixels();
+    for (size_t i = 0; i < targetPixels.size(); ++i) {
+        const uint32_t pixel = targetPixels[i];
+        const size_t offset = i * 4;
+        targetData[offset + 0] = static_cast<uint8>((pixel >> 16) & 0xFF);
+        targetData[offset + 1] = static_cast<uint8>((pixel >> 8) & 0xFF);
+        targetData[offset + 2] = static_cast<uint8>(pixel & 0xFF);
+        targetData[offset + 3] = static_cast<uint8>((pixel >> 24) & 0xFF);
+    }
+
+    return upscaledImage;
 }
 
 bool SpriteManager::loadCasualSpr(std::string file)
 {
-    m_spriteSize = 32u;
+    m_baseSpriteSize = 32;
+    updateSpriteSize();
     try {
         file = g_resources.guessFilePath(file, "spr");
 
@@ -361,6 +469,7 @@ bool SpriteManager::loadCwmSpr(std::string file)
         }
 
         m_spriteSize = spritesFile->getU16();
+        m_baseSpriteSize = m_spriteSize;
         m_cachedData = std::move(PngUnpacker::unpack(spritesFile));
         m_spritesCount = m_cachedData.size();
 
@@ -383,7 +492,7 @@ bool SpriteManager::loadCwmSpr(std::string file)
 ImagePtr SpriteManager::getSpriteImageCasual(int id)
 {
     try {
-        int spriteDataSize = m_spriteSize * m_spriteSize * 4;
+        int spriteDataSize = m_baseSpriteSize * m_baseSpriteSize * 4;
 
         if (!m_sprites.empty()) {
             if (id >= (int)m_sprites.size())
@@ -402,7 +511,7 @@ ImagePtr SpriteManager::getSpriteImageCasual(int id)
 
             bool hasAlpha = (buffer[1] == 1);
 
-            auto image = std::make_shared<Image>(Size(m_spriteSize, m_spriteSize));
+            auto image = std::make_shared<Image>(Size(m_baseSpriteSize, m_baseSpriteSize));
             uint8* pixels = image->getPixelData();
             int writePos = 0;
 
@@ -451,7 +560,7 @@ ImagePtr SpriteManager::getSpriteImageCasual(int id)
 
         uint16 pixelDataSize = m_spritesFile->getU16();
 
-        auto image = std::make_shared<Image>(Size(m_spriteSize, m_spriteSize));
+        auto image = std::make_shared<Image>(Size(m_baseSpriteSize, m_baseSpriteSize));
 
         uint8* pixels = image->getPixelData();
         int writePos = 0;
