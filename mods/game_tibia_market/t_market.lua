@@ -70,14 +70,15 @@ end
 
 local function getMarketCategoryName(category)
 	local categories = g_things.getMarketCategories and g_things.getMarketCategories() or {}
-	if categories and categories[category] then
-		return tostring(categories[category])
+	local clientName = categories and categories[category]
+	if type(clientName) == 'string' and clientName ~= '' and tonumber(clientName) == nil then
+		return clientName:gsub("\n", " ")
 	end
 
 	if getObjectCategoryName then
 		local name = getObjectCategoryName(category)
 		if name and name ~= '' then
-			return name
+			return name:gsub("\n", " ")
 		end
 	end
 

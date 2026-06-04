@@ -220,6 +220,9 @@ end
 
 function LocalPlayer:setResourceInfo(type, value)
   PlayerInfos[type] = value
+  if self.setResourceValue then
+    self:setResourceValue(type, value)
+  end
 end
 function LocalPlayer:getResourceInfo(type)
   return PlayerInfos[type] or 0

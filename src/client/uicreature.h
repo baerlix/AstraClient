@@ -35,9 +35,11 @@ public:
     void setCreature(const CreaturePtr& creature) { m_creature = creature; }
     void setFixedCreatureSize(bool fixed) { m_scale = fixed ? 1.0 : 0; }
     void setOutfit(const Outfit& outfit);
+    void setRaceID(uint16 raceId) { m_raceId = raceId; }
 
     CreaturePtr getCreature() { return m_creature; }
     Outfit getOutfit() { return m_creature ? m_creature->getOutfit() : Outfit(); }
+    uint16 getRaceID() { return m_raceId; }
     bool isFixedCreatureSize() { return m_scale > 0; }
     bool isColoredMount() { return true; }
 
@@ -68,6 +70,7 @@ protected:
     stdext::boolean<false> m_staticWalking;
     stdext::boolean<false> m_oldScaling;
     Otc::Direction m_direction = Otc::South;
+    uint16 m_raceId = 0;
     float m_scale = 1.0;
 };
 

@@ -37,6 +37,12 @@ local ServerPackets = {
 	ItemDetails = 0xC7
 }
 
+local ClientPackets = {
+	OpenRewardWall = 0xB4,
+	OpenRewardHistory = 0xB5,
+	SelectReward = 0xB6
+}
+
 -- Server Types
 local DAILY_REWARD_TYPE_ITEM = 1
 local DAILY_REWARD_TYPE_STORAGE = 2
@@ -50,6 +56,51 @@ local DAILY_REWARD_SYSTEM_TYPE_TWO = 2
 local DAILY_REWARD_SYSTEM_TYPE_OTHER = 1
 local DAILY_REWARD_SYSTEM_TYPE_PREY_REROLL = 2
 local DAILY_REWARD_SYSTEM_TYPE_XP_BOOST = 3
+
+local function sendDailyRewardPacket(opcode, writer)
+  local protocolGame = g_game.getProtocolGame()
+  if not protocolGame then
+    return false
+  end
+
+  local msg = OutputMessage.create()
+  msg:addU8(opcode)
+  if writer then
+    writer(msg)
+  end
+  protocolGame:send(msg)
+  return true
+end
+
+function g_game.openDailyReward()
+  return sendDailyRewardPacket(ClientPackets.OpenRewardWall)
+end
+
+function g_game.dailyRewardHistory()
+  return sendDailyRewardPacket(ClientPackets.OpenRewardHistory)
+end
+
+function g_game.dailyRewardConfirm(fromShrine, items)
+  return sendDailyRewardPacket(ClientPackets.SelectReward, function(msg)
+    msg:addU8(fromShrine and 1 or 0)
+
+    local selectedItems = {}
+    for itemId, count in pairs(items or {}) do
+      itemId = tonumber(itemId)
+      count = tonumber(count)
+      if itemId and itemId > 0 and count and count > 0 then
+        selectedItems[#selectedItems + 1] = { itemId = itemId, count = math.min(count, 0xFF) }
+      end
+    end
+
+    table.sort(selectedItems, function(a, b) return a.itemId < b.itemId end)
+    msg:addU8(math.min(#selectedItems, 0xFF))
+    for i = 1, math.min(#selectedItems, 0xFF) do
+      msg:addU16(selectedItems[i].itemId)
+      msg:addU8(selectedItems[i].count)
+    end
+  end)
+end
 
 function init()
   connect(g_game, { onEnterGame = registerProtocol,
@@ -123,6 +174,69 @@ function registerProtocol()
 		})
 	end
 	signalcall(g_game.onItemDetails, itemId)
+  end)
+
+  registerOpcode(ServerPackets.OpenRewardWall, function(protocol, msg)
+    local fromShrine = msg:getU8() ~= 0
+    local nextRewardTime = msg:getU32()
+    local currentIndex = msg:getU8()
+    local taken = msg:getU8() ~= 0
+    local message = ''
+    local dailyState = 2
+    local jokerToken = 0
+    local serverSave = 0
+
+    if taken then
+      dailyState = 0
+      message = msg:getString()
+      if msg:getU8() ~= 0 then
+        jokerToken = msg:getU16()
+      end
+    else
+      dailyState = msg:getU8()
+      serverSave = msg:getU32()
+      jokerToken = msg:getU16()
+    end
+
+    local dayStreakLevel = msg:getU16()
+    signalcall(g_game.onOpenRewardWall, fromShrine, nextRewardTime, currentIndex, message, dailyState, jokerToken, serverSave, dayStreakLevel)
+  end)
+
+  registerOpcode(ServerPackets.CloseRewardWall, function(protocol, msg)
+
+  end)
+
+  registerOpcode(ServerPackets.DailyRewardBasic, function(protocol, msg)
+    local count = msg:getU8()
+    local freeRewards = {}
+    local premiumRewards = {}
+    for i = 1, count do
+      freeRewards[i] = readDailyReward(msg)
+      premiumRewards[i] = readDailyReward(msg)
+    end
+
+    local descriptions = {}
+    local maxBonus = msg:getU8()
+    for i = 1, maxBonus do
+      descriptions[i] = msg:getString()
+      msg:getU8()
+    end
+    msg:getU8()
+    signalcall(g_game.onDailyReward, freeRewards, premiumRewards, descriptions)
+  end)
+
+  registerOpcode(ServerPackets.DailyRewardHistory, function(protocol, msg)
+    local count = msg:getU8()
+    local history = {}
+    for i=1,count do
+      history[i] = {
+        msg:getU32(),
+        msg:getU8(),
+        msg:getString(),
+        msg:getU16()
+      }
+    end
+    signalcall(g_game.onDailyRewardHistory, history)
   end)
 
   if not g_game.getFeature(GameTibia12Protocol) then
@@ -623,47 +737,6 @@ function registerProtocol()
 	msg:getU16() -- Stash size left (total - used)
   end)
 
-  registerOpcode(ServerPackets.OpenRewardWall, function(protocol, msg)
-    msg:getU8()
-    msg:getU32()
-    msg:getU8()
-    local taken = msg:getU8()
-    if taken > 0 then
-      msg:getString()
-    end
-    msg:getU32()
-    msg:getU16()
-    msg:getU16()
-  end)
-
-  registerOpcode(ServerPackets.CloseRewardWall, function(protocol, msg)
-
-  end)
-
-  registerOpcode(ServerPackets.DailyRewardBasic, function(protocol, msg)
-    local count = msg:getU8()
-    for i = 1, count do
-      readDailyReward(msg)
-      readDailyReward(msg)
-    end
-    local maxBonus = msg:getU8()
-    for i = 1, maxBonus do
-      msg:getString()
-      msg:getU8()
-    end
-    msg:getU8()
-  end)
-
-  registerOpcode(ServerPackets.DailyRewardHistory, function(protocol, msg)
-    local count = msg:getU8()
-    for i=1,count do
-      msg:getU32()
-      msg:getU8()
-      msg:getString()
-      msg:getU16()
-    end
-  end)
-
   registerOpcode(ServerPackets.BestiaryTrackerTab, function(protocol, msg)
     local count = msg:getU8()
     for i = 1, count do
@@ -744,22 +817,33 @@ end
 
 function readDailyReward(msg)
 	local systemType = msg:getU8()
+  local reward = {
+    type = systemType,
+    amount = 0,
+    items = {},
+    preyCount = 0,
+    xpboost = 0
+  }
+
 	if (systemType == 1) then
-    msg:getU8()
+    reward.amount = msg:getU8()
     local count = msg:getU8()
     for i = 1, count do
-      msg:getU16()
-      msg:getString()
-      msg:getU32()
+      reward.items[#reward.items + 1] = {
+        item = msg:getU16(),
+        name = msg:getString(),
+        oz = msg:getU32()
+      }
     end
 	elseif (systemType == 2) then
     msg:getU8()
     local type = msg:getU8()
 
 		if (type == DAILY_REWARD_SYSTEM_TYPE_PREY_REROLL) then
-      msg:getU8()
+      reward.preyCount = msg:getU8()
 		elseif (type == DAILY_REWARD_SYSTEM_TYPE_XP_BOOST) then
-      msg:getU16()
+      reward.xpboost = msg:getU16()
 		end
 	end
+  return reward
 end

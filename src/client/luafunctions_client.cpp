@@ -969,9 +969,11 @@ void Client::registerLuaFunctions()
     g_lua.bindClassStaticFunction<UICreature>("create", []{ return std::make_shared<UICreature>(); } );
     g_lua.bindClassMemberFunction<UICreature>("setCreature", &UICreature::setCreature);
     g_lua.bindClassMemberFunction<UICreature>("setOutfit", &UICreature::setOutfit);
+    g_lua.bindClassMemberFunction<UICreature>("setRaceID", &UICreature::setRaceID);
     g_lua.bindClassMemberFunction<UICreature>("setFixedCreatureSize", &UICreature::setFixedCreatureSize);
     g_lua.bindClassMemberFunction<UICreature>("getCreature", &UICreature::getCreature);
     g_lua.bindClassMemberFunction<UICreature>("getOutfit", &UICreature::getOutfit);
+    g_lua.bindClassMemberFunction<UICreature>("getRaceID", &UICreature::getRaceID);
     g_lua.bindClassMemberFunction<UICreature>("isFixedCreatureSize", &UICreature::isFixedCreatureSize);
     g_lua.bindClassMemberFunction<UICreature>("setAutoRotating", &UICreature::setAutoRotating);
     g_lua.bindClassMemberFunction<UICreature>("setDirection", &UICreature::setDirection);

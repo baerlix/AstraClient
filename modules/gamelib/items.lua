@@ -35,6 +35,122 @@ ItemsDatabase.fixedValues = ItemsDatabase.fixedValues or {
 ItemsDatabase.serverValues = ItemsDatabase.serverValues or {}
 ItemsDatabase.serverDetails = ItemsDatabase.serverDetails or {}
 ItemsDatabase.lootValueState = ItemsDatabase.lootValueState or 1
+ItemsDatabase.serverValueCacheLoaded = ItemsDatabase.serverValueCacheLoaded or false
+ItemsDatabase.serverValueCacheSaveEvent = ItemsDatabase.serverValueCacheSaveEvent or nil
+
+local function getServerValueCacheFile()
+  if not LoadedPlayer or not LoadedPlayer.isLoaded or not LoadedPlayer:isLoaded() then
+    return nil
+  end
+
+  if not g_resources.directoryExists("/characterdata/") then
+    g_resources.makeDir("/characterdata/")
+  end
+
+  local directory = "/characterdata/" .. LoadedPlayer:getId() .. "/"
+  if not g_resources.directoryExists(directory) then
+    g_resources.makeDir(directory)
+  end
+
+  return directory .. "itemprices.json"
+end
+
+local function readServerValueCache()
+  local file = getServerValueCacheFile()
+  if not file or not g_resources.fileExists(file) then
+    return {}
+  end
+
+  local ok, data = pcall(function()
+    return json.decode(g_resources.readFileContents(file))
+  end)
+
+  if ok and type(data) == 'table' then
+    return data
+  end
+  return {}
+end
+
+function ItemsDatabase.loadServerValueCache()
+  if ItemsDatabase.serverValueCacheLoaded then
+    return
+  end
+
+  local data = readServerValueCache()
+  for k, value in pairs(data.serverValues or {}) do
+    local itemId = tonumber(k)
+    local itemValue = tonumber(value)
+    if itemId and itemId > 0 and itemValue and itemValue > 0 then
+      ItemsDatabase.serverValues[itemId] = math.max(ItemsDatabase.serverValues[itemId] or 0, itemValue)
+    end
+  end
+
+  for k, details in pairs(data.serverDetails or {}) do
+    local itemId = tonumber(k)
+    if itemId and itemId > 0 and type(details) == 'table' and not ItemsDatabase.serverDetails[itemId] then
+      ItemsDatabase.serverDetails[itemId] = details
+    end
+  end
+
+  ItemsDatabase.serverValueCacheLoaded = true
+end
+
+function ItemsDatabase.saveServerValueCache()
+  local file = getServerValueCacheFile()
+  if not file then
+    return
+  end
+
+  local data = readServerValueCache()
+  data.primaryLootValueSources = data.primaryLootValueSources or {}
+  data.customSalePrices = data.customSalePrices or {}
+  data.serverValues = data.serverValues or {}
+  data.serverDetails = data.serverDetails or {}
+
+  for itemId, value in pairs(ItemsDatabase.serverValues or {}) do
+    local key = tostring(itemId)
+    local existing = tonumber(data.serverValues[key]) or 0
+    data.serverValues[key] = math.max(existing, tonumber(value) or 0)
+  end
+
+  for itemId, details in pairs(ItemsDatabase.serverDetails or {}) do
+    if type(details) == 'table' then
+      data.serverDetails[tostring(itemId)] = {
+        defaultValue = details.defaultValue,
+        averageMarketValue = details.averageMarketValue
+      }
+    end
+  end
+
+  local ok, encoded = pcall(function()
+    return json.encode(data, 2)
+  end)
+  if ok and encoded then
+    g_resources.writeFileContents(file, encoded)
+  end
+end
+
+function ItemsDatabase.scheduleServerValueCacheSave()
+  if ItemsDatabase.serverValueCacheSaveEvent then
+    return
+  end
+
+  ItemsDatabase.serverValueCacheSaveEvent = scheduleEvent(function()
+    ItemsDatabase.serverValueCacheSaveEvent = nil
+    ItemsDatabase.saveServerValueCache()
+  end, 500)
+end
+
+if not ItemsDatabase.serverValueCacheConnected then
+  ItemsDatabase.serverValueCacheConnected = true
+  connect(g_game, {
+    onGameStart = function()
+      ItemsDatabase.serverValueCacheLoaded = false
+      scheduleEvent(ItemsDatabase.loadServerValueCache, 100)
+    end,
+    onGameEnd = ItemsDatabase.saveServerValueCache
+  })
+end
 
 local function clampLootValueState(value)
   value = tonumber(value) or 0
@@ -54,6 +170,7 @@ function ItemsDatabase.registerServerItemValue(itemId, value)
   value = tonumber(value)
   if itemId and itemId > 0 and value and value > 0 then
     ItemsDatabase.serverValues[itemId] = math.max(ItemsDatabase.serverValues[itemId] or 0, value)
+    ItemsDatabase.scheduleServerValueCacheSave()
   end
 end
 
@@ -64,6 +181,7 @@ function ItemsDatabase.registerServerItemDetails(itemId, details)
   end
 
   ItemsDatabase.serverDetails[itemId] = details
+  ItemsDatabase.scheduleServerValueCacheSave()
 
   local value = tonumber(details.defaultValue) or 0
   if value <= 0 then

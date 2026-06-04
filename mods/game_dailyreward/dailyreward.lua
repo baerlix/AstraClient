@@ -129,7 +129,12 @@ function onOpenRewardWall(fromShrine, nextRewardTime, currentIndex, message, dai
   dailyRewardWindow.miniWindowBonuses.jokerInfo.timerStreakPanel.timerStreakLabel:setText("")
   dailyRewardWindow.miniWindowBonuses.jokerInfo.timerStreakPanel.timerStreakCheck:setVisible(true)
 
-  local jokerBalance = player:getResourceValue(ResourceJokerReward)
+  local storedJokerBalance = player:getResourceValue(ResourceJokerReward) or player:getResourceInfo(ResourceJokerReward) or 0
+  local jokerBalance = math.max(storedJokerBalance, jokerToken or 0)
+  jokerTokens = jokerBalance
+  instantTokens = player:getResourceValue(ResourceReward) or player:getResourceInfo(ResourceReward) or instantTokens or 0
+
+  dailyRewardWindow.instantAcess.instantLabel:setText(instantTokens)
   local text = jokerToken > 3 and ">3" or jokerToken
   dailyRewardWindow.miniWindowBonuses.jokerInfo.jokers.jokerInfoLabel:setText(text)
 
@@ -501,9 +506,12 @@ end
 
 function onResourceBalance(type, value)
   g_game.getLocalPlayer():setResourceInfo(type, value)
-  if type == 20 then
+  if type == ResourceReward then
     instantTokens = value
     dailyRewardWindow.instantAcess.instantLabel:setText(value)
+  elseif type == ResourceJokerReward then
+    jokerTokens = value
+    dailyRewardWindow.jokers.jokersLabel:setText(math.min(3, value))
   end
 end
 
