@@ -102,7 +102,57 @@ end
 
 local function setItemRarityFrame(widget, itemOrId)
 	if ItemsDatabase and ItemsDatabase.setRarityItem then
-		ItemsDatabase.setRarityItem(widget, itemOrId)
+		local target = widget
+		if widget and widget.getParent then
+			local parent = widget:getParent()
+			if parent and parent.itemBackground then
+				target = parent.itemBackground
+			end
+		end
+
+		if widget and widget.getId and widget:getId() == 'selectedItem' and marketWindow and marketWindow.contentPanel.selectedItemBackground then
+			target = marketWindow.contentPanel.selectedItemBackground
+		end
+
+		ItemsDatabase.setRarityItem(target, itemOrId)
+	end
+end
+
+local function clearMarketItemWidget(widget)
+	if not widget then
+		return
+	end
+
+	if widget.setItem then
+		widget:setItem(nil)
+	elseif widget.setItemId then
+		widget:setItemId(0)
+	end
+
+	if ItemsDatabase and ItemsDatabase.setTier then
+		ItemsDatabase.setTier(widget, nil)
+	end
+	setItemRarityFrame(widget, nil)
+end
+
+local function getMarketItemTier(itemInfo, fallbackTier)
+	if itemInfo and itemInfo.tier ~= nil then
+		return itemInfo.tier
+	end
+	return fallbackTier or 0
+end
+
+local function getMarketItemCount(itemInfo, fallbackTier)
+	return getDepotItemCount(itemInfo.thingType:getId(), getMarketItemTier(itemInfo, fallbackTier))
+end
+
+local function addMarketListItem(itemInfo, tier)
+	if tier and tier > 0 then
+		local copy = table.copy(itemInfo)
+		copy.tier = tier
+		table.insert(cache.SCROLL_MARKET_ITEMS.listData, copy)
+	else
+		table.insert(cache.SCROLL_MARKET_ITEMS.listData, itemInfo)
 	end
 end
 
@@ -817,8 +867,8 @@ function onItemListValueChange(scroll, value, delta)
 			lastSelectedItem.lastWidget = widget
 		end
 
-		local tier = sortButtons["tierFilter"] or 0
-		local count = getDepotItemCount(data.thingType:getId(), tier)
+		local tier = getMarketItemTier(data, sortButtons["tierFilter"] or 0)
+		local count = getMarketItemCount(data, tier)
 		widget.item:setItemId(data.thingType:getId())
 		setItemRarityFrame(widget.item, data.thingType:getId())
 
@@ -832,7 +882,7 @@ function onItemListValueChange(scroll, value, delta)
 		widget.item:getItem():setCount(count)
 		widget.item:setActionId(index)
 		widget.item:setTooltip(tr("%s%s%s%s", comma_value(count), "x", (count > 65000 and "+ " or " "), data.marketData.name))
-		widget.item:setTier(data.tier and data.tier or tier)
+		widget.item:setTier(tier)
 
 		if not widget.name:isTextWraped() then
 			widget.name:setMarginTop(1)
@@ -906,7 +956,7 @@ function onSelectChildCategory(widget, selected, keepFilter)
 		end
 	end
 
-	marketWindow.contentPanel.selectedItem:setItem(nil)
+	clearMarketItemWidget(marketWindow.contentPanel.selectedItem)
 	itemList.onChildFocusChange = function(self, selected, oldFocus) onSelectChildItem(self, selected, oldFocus) end
 
 	local tier = sortButtons["tierFilter"] or 0
@@ -916,7 +966,7 @@ function onSelectChildCategory(widget, selected, keepFilter)
 			goto continue
 		end
 
-		table.insert(cache.SCROLL_MARKET_ITEMS.listData, itemInfo)
+		addMarketListItem(itemInfo, tier)
 		:: continue ::
 	end
 
@@ -925,7 +975,8 @@ function onSelectChildCategory(widget, selected, keepFilter)
 			break
 		end
 
-		local count = getDepotItemCount(itemInfo.thingType:getId(), tier)
+		local itemTier = getMarketItemTier(itemInfo, tier or 0)
+		local count = getMarketItemCount(itemInfo, itemTier)
 		if not checkSortMarketOptions(itemInfo) or (count == 0 and showLockerOnly) then
 			goto continue
 		end
@@ -946,9 +997,7 @@ function onSelectChildCategory(widget, selected, keepFilter)
 		widget.item:setActionId(i)
 		widget.item:setTooltip(tr("%s%s%s%s", comma_value(count), "x", (count > 65000 and "+ " or " "), itemInfo.marketData.name))
 
-		if tier ~= 0 then
-			widget.item:getItem():setTier(tier)
-		end
+		widget.item:setTier(itemTier)
 
 		if not widget.name:isTextWraped() then
 			widget.name:setMarginTop(1)
@@ -1064,7 +1113,7 @@ function onClearMainMarket(cleanList)
 	if cleanList then
 		updateSellCount(nil, 0)
 		updateBuyCount(nil, 0)
-		marketWindow.contentPanel.selectedItem:setItem(nil)
+		clearMarketItemWidget(marketWindow.contentPanel.selectedItem)
 		marketWindow.contentPanel.itemList:destroyChildren()
 	end
 
@@ -1106,6 +1155,8 @@ end
 function toggleShowLockerOnly(widget, checked)
 	showLockerOnly = checked
 	if not lastSelectedCategory then
+		lastSelectedItem = {}
+		onClearMainMarket(true)
 		if #marketWindow.contentPanel.searchText:getText() > 0 then
 			onSearchItem(marketWindow.contentPanel.searchText)
 		end
@@ -1535,7 +1586,7 @@ function onSearchItem(textField)
 	onClearMainMarket(true)
 
 	marketWindow.contentPanel.mainMarket.getPotionsButton:setVisible(false)
-	marketWindow.contentPanel.selectedItem:setItem(nil)
+	clearMarketItemWidget(marketWindow.contentPanel.selectedItem)
 
 	itemList.onChildFocusChange = function(self, selected, oldFocus) onSelectChildItem(self, selected, oldFocus) end
 
@@ -1565,7 +1616,7 @@ function onSearchItem(textField)
 				end
 
 				if matchText(textField:getText(), data.marketData.name) then
-					table.insert(cache.SCROLL_MARKET_ITEMS.listData, data)
+					addMarketListItem(data, tier)
 				end
 
 				::continue::
@@ -1580,7 +1631,8 @@ function onSearchItem(textField)
 			break
 		end
 
-		local count = getDepotItemCount(itemInfo.thingType:getId(), tier)
+		local itemTier = getMarketItemTier(itemInfo, tier or 0)
+		local count = getMarketItemCount(itemInfo, itemTier)
 		if not checkSortMarketOptions(itemInfo) or (count == 0 and showLockerOnly) then
 			goto continue
 		end
@@ -1601,9 +1653,7 @@ function onSearchItem(textField)
 		widget.item:setActionId(i)
 		widget.item:setTooltip(tr("%s%s%s%s", comma_value(count), "x", (count > 65000 and "+ " or " "), itemInfo.marketData.name))
 
-		if tier ~= 0 then
-			widget.item:getItem():setTier(tier)
-		end
+		widget.item:setTier(itemTier)
 
 		if not widget.name:isTextWraped() then
 			widget.name:setMarginTop(1)
@@ -1662,7 +1712,7 @@ function onShowRedirect(item)
 	onClearMainMarket(true)
 
 	marketWindow.contentPanel.mainMarket.getPotionsButton:setVisible(false)
-	marketWindow.contentPanel.selectedItem:setItem(nil)
+	clearMarketItemWidget(marketWindow.contentPanel.selectedItem)
 
 	itemList.onChildFocusChange = function(self, selected, oldFocus) onSelectChildItem(self, selected, oldFocus) end
 
@@ -1679,6 +1729,7 @@ function onShowRedirect(item)
 		marketWindow.contentPanel.tierFilter:clearOptions()
 	end
 
+	local tier = 0
 	for c = MarketCategory.First, MarketCategory.Last do
 		local marketItem = marketItems[c]
 		if marketItem then
@@ -1707,7 +1758,8 @@ function onShowRedirect(item)
 			break
 		end
 
-		local count = getDepotItemCount(itemInfo.thingType:getId(), tier)
+		local itemTier = getMarketItemTier(itemInfo, tier or 0)
+		local count = getMarketItemCount(itemInfo, itemTier)
 		if not checkSortMarketOptions(itemInfo) or (count == 0 and showLockerOnly) then
 			goto continue
 		end
@@ -1729,7 +1781,7 @@ function onShowRedirect(item)
 		widget.item:setTooltip(tr("%s%s%s%s", comma_value(count), "x", (count > 65000 and "+ " or " "), itemInfo.marketData.name))
 
 		-- Tier as index
-		widget.item:getItem():setTier(itemInfo.tier)
+		widget.item:setTier(itemTier)
 
 		if not widget.name:isTextWraped() then
 			widget.name:setMarginTop(1)
@@ -1837,10 +1889,10 @@ function onSortMarketFields(widget, checked)
 			sortButtons["oneButton"] = false
 		end
 	elseif table.contains({'classFilter', 'tierFilter'}, widget:getId()) then
-		if checked > 1 and widget:getId() == "classFilter" then
-			sortButtons["classFilter"] = (checked - 2)
+		if widget:getId() == "classFilter" then
+			sortButtons["classFilter"] = checked > 1 and (checked - 2) or -1
 		elseif widget:getId() == "tierFilter" then
-			sortButtons["tierFilter"] = checked - 1
+			sortButtons["tierFilter"] = math.max(0, checked - 1)
 		end
 	elseif table.contains({'levelButton', 'vocButton'}, widget:getId()) then
 		widget:setChecked(not checked)
@@ -1848,6 +1900,8 @@ function onSortMarketFields(widget, checked)
 	end
 
 	if not lastSelectedCategory then
+		lastSelectedItem = {}
+		onClearMainMarket(true)
 		if #marketWindow.contentPanel.searchText:getText() > 0 then
 			onSearchItem(marketWindow.contentPanel.searchText)
 		end

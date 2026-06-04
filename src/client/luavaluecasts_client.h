@@ -65,4 +65,8 @@ bool luavalue_cast(int index, UnjustifiedPoints& unjustifiedPoints);
 int push_luavalue(const GemData& gem);
 bool luavalue_cast(int index, GemData& gem);
 
+// daily reward
+int push_luavalue(const DailyRewardSelectableItem& item);
+int push_luavalue(const DailyRewardEntry& reward);
+
 #endif

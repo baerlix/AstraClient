@@ -370,6 +370,7 @@ MarketItemList < UIWidget
   focusable: true
 
   UIWidget
+    id: itemBackground
     size: 34 34
     image-source: /images/ui/item
     anchors.top: parent.top
@@ -552,6 +553,7 @@ MarketMainWindow < Panel
     pixels-scroll: true
 
   UIWidget
+    id: selectedItemBackground
     size: 34 34
     image-source: /images/ui/item
     anchors.top: prev.bottom

@@ -423,3 +423,37 @@ bool luavalue_cast(int index, UnjustifiedPoints& unjustifiedPoints)
     }
     return false;
 }
+
+int push_luavalue(const DailyRewardSelectableItem& item)
+{
+    g_lua.createTable(0, 3);
+    g_lua.pushInteger(item.item);
+    g_lua.setField("item");
+    g_lua.pushString(item.name);
+    g_lua.setField("name");
+    g_lua.pushInteger(item.oz);
+    g_lua.setField("oz");
+    return 1;
+}
+
+int push_luavalue(const DailyRewardEntry& reward)
+{
+    g_lua.createTable(0, 5);
+    g_lua.pushInteger(reward.type);
+    g_lua.setField("type");
+    g_lua.pushInteger(reward.amount);
+    g_lua.setField("amount");
+
+    g_lua.createTable(static_cast<int>(reward.items.size()), 0);
+    for (size_t i = 0; i < reward.items.size(); ++i) {
+        push_luavalue(reward.items[i]);
+        g_lua.rawSeti(static_cast<int>(i + 1));
+    }
+    g_lua.setField("items");
+
+    g_lua.pushInteger(reward.preyCount);
+    g_lua.setField("preyCount");
+    g_lua.pushInteger(reward.xpboost);
+    g_lua.setField("xpboost");
+    return 1;
+}

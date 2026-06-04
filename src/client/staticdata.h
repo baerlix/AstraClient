@@ -25,6 +25,9 @@
 
 #include "global.h"
 
+#include <string>
+#include <vector>
+
 struct GemData
 {
     uint16_t gemID = 0;
@@ -34,6 +37,22 @@ struct GemData
     uint8_t lesserBonus = 0;
     uint8_t regularBonus = 0;
     uint8_t supremeBonus = 0;
+};
+
+struct DailyRewardSelectableItem
+{
+    uint16_t item = 0;
+    std::string name;
+    uint32_t oz = 0;
+};
+
+struct DailyRewardEntry
+{
+    uint8_t type = 0;
+    uint8_t amount = 0;
+    std::vector<DailyRewardSelectableItem> items;
+    uint8_t preyCount = 0;
+    uint16_t xpboost = 0;
 };
 
 #endif
