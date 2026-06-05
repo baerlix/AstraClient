@@ -18,6 +18,49 @@ Offers.coinCheck = nil
 Offers.loadOffersEvent = nil
 Offers.clientOffers = {}
 
+local function removeBuyTooltipOverlay(id)
+	if not Offers.displayPanel then
+		return
+	end
+
+	local overlay = Offers.displayPanel:recursiveGetChildById(id)
+	if overlay then
+		overlay:destroy()
+	end
+end
+
+local function createBuyTooltipOverlay(button, id, disabledReason)
+	removeBuyTooltipOverlay(id)
+
+	if not Offers.displayPanel or not button or not disabledReason or disabledReason == '' then
+		return
+	end
+
+	local overlay = g_ui.createWidget('UIWidget', Offers.displayPanel)
+	overlay:setId(id)
+	overlay:setFocusable(false)
+	overlay:setSize(button:getSize())
+	overlay:setPosition(button:getPosition())
+	overlay:parseColoreDisplayToolTip(string.format(
+		"[color=#ff0000]The product is not available for this character:\n\n%s[/color]",
+		disabledReason
+	))
+	overlay:setOpacity(0)
+	overlay:addAnchor(AnchorLeft, button:getId(), AnchorLeft)
+	overlay:addAnchor(AnchorTop, button:getId(), AnchorTop)
+	overlay:raise()
+end
+
+local function hasEnoughCoins(subOffer)
+	if subOffer.coinType == COIN_TYPE_TRANSFERABLE then
+		return Store.transferableCoins >= subOffer.price
+	elseif subOffer.coinType == COIN_TYPE_TOURNAMENT then
+		return Store.tournamentCoins >= subOffer.price
+	end
+
+	return (Store.coins + Store.transferableCoins) >= subOffer.price
+end
+
 function Offers:stopAllEvents()
 	if HomeOffer.event then
 		HomeOffer.event:cancel()
@@ -57,7 +100,6 @@ function Offers:configure(categoryName, offers, redirect, sortingType, filters, 
 	Offers.currentFilter = currentFilter
 
 	Offers.reasons = reasons
-	Offers.reasons[#Offers.reasons + 1] = "You don't have money"
 	Offers.clientOffers = {}
 	Offers:checkOrder(nil, sortingType, currentFilter)
 end
@@ -219,35 +261,16 @@ function Offers:refreshOffers(displayOffer, redirect, filter)
 				Offers.clientOffers[offer.id] = string.format("<font color=\"#ECAC46\">{star} Valid until %s{star} %d days left<br /></font>", os.date("%Y-%m-%d, %X", subOffer.saleValidUntilTimestamp), daysLeft)
 			end
 
-			local changeCount = #Offers.reasons
 			-- check price   subOffer.price
-			if subOffer.coinType == COIN_TYPE_DEFAULT then -- normal coin
-				if Store.coins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-
-					widget:getChildById("price" .. i):setColor("$var-text-cip-store-red")
-					widget.coinCheck = true
-				end
-			elseif subOffer.coinType == COIN_TYPE_TRANSFERABLE then -- transfeable coin
-				if Store.transferableCoins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-          			local slot = i == 2 and 1 or 2
-					widget:getChildById("price" .. slot):setColor("$var-text-cip-store-red")
-					widget.coinCheck = true
-				end
-			elseif subOffer.coinType == COIN_TYPE_TOURNAMENT then -- tournament coin
-				if Store.tournamentCoins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-					widget:getChildById("price" .. i):setColor("$var-text-cip-store-red")
-					widget.coinCheck = true
-				end
+			if not hasEnoughCoins(subOffer) then
+				local slot = subOffer.coinType == COIN_TYPE_TRANSFERABLE and (i == 2 and 1 or 2) or i
+				widget:getChildById("price" .. slot):setColor("$var-text-cip-store-red")
+				widget.coinCheck = true
 			end
 
 			local canChange = false
 			for _, i in pairs(subOffer.disabledReasons) do
-				if changeCount ~= i.reasonId then
-					canChange = true
-				end
+				canChange = true
 				subOffer.disabledReason = string.format("%s* %s\n", subOffer.disabledReason, Offers.reasons[i.reasonId])
 			end
 
@@ -384,7 +407,7 @@ function Offers:setDisableShader(widget, disabledReason, active, state)
 
 		widget.name:setColor(c_color)
 
-		local color = not string.find(disabledReason, "You don't have money") and "$var-text-cip-store-disabled" or "$var-text-cip-store-red-disabled"
+		local color = "$var-text-cip-store-disabled"
 
 		widget.price1:setColor(color)
 		widget.price2:setColor(color)
@@ -513,26 +536,28 @@ function Offers:onSelectionOffer(_, selectedWidget)
 	end
 
 	local disabled = false
+	removeBuyTooltipOverlay('buy1TooltipOverlay')
+	removeBuyTooltipOverlay('buy2TooltipOverlay')
 	Offers.displayPanel.buy1:setImageSource("/images/store/buybutton")
 	Offers.displayPanel.buy1:setOn(true)
 	Offers.displayPanel.buy1:setTooltip('')
 	Offers.displayPanel.buy2:setTooltip('')
 	Offers.displayPanel.price1.price:setColor("$var-text-cip-color")
 	Offers.displayPanel.price2.price:setColor("$var-text-cip-color")
+	local hasBalance1 = hasEnoughCoins(offer.offers[1])
+	if not hasBalance1 then
+		Offers.displayPanel.price1.price:setColor("$var-text-cip-store-red")
+	end
+
 	if offer.offers[1].disabledReason ~= '' then
 		Offers.displayPanel.buy1.onClick = function() end
-		local msg = {}
-		setStringColor(msg, "The product is not available for this character:\n", "$var-text-cip-store-red")
-		setStringColor(msg, offer.offers[1].disabledReason, "$var-text-cip-store-red")
-		Offers.displayPanel.buy1:setTooltip(msg)
+		createBuyTooltipOverlay(Offers.displayPanel.buy1, 'buy1TooltipOverlay', offer.offers[1].disabledReason)
 		Offers.displayPanel.buy1:setImageSource("/images/store/buybutton")
 		Offers.displayPanel.buy1:setOn(false)
-
-
-		if string.find(offer.offers[1].disabledReason, "You don't have money") then
-			Offers.displayPanel.price1.price:setColor("$var-text-cip-store-red")
-		end
 		disabled = true
+	elseif not hasBalance1 then
+		Offers.displayPanel.buy1.onClick = function() end
+		Offers.displayPanel.buy1:setOn(false)
 	else
 		Offers.displayPanel.buy1.onClick = function() buyStoreOffer(offer, offer.offers[1]) end
 	end
@@ -582,26 +607,27 @@ function Offers:onSelectionOffer(_, selectedWidget)
 
 		Offers.displayPanel.buy2:setImageSource("/images/store/buybutton")
 		Offers.displayPanel.buy2:setOn(true)
+		local hasBalance2 = hasEnoughCoins(offer.offers[2])
+		if not hasBalance2 then
+			Offers.displayPanel.price2.price:setColor("$var-text-cip-store-red")
+		end
+
 		if offer.offers[2].disabledReason ~= '' then
 			Offers.displayPanel.buy2.onClick = function() end
-			local msg = {}
-			setStringColor(msg, "The product is not available for this character:\n", "$var-text-cip-store-red")
-			setStringColor(msg, offer.offers[2].disabledReason, "$var-text-cip-store-red")
 			Offers.displayPanel.buy2:setOn(false)
-			Offers.displayPanel.buy2:setTooltip(msg)
-
-
-			if string.find(offer.offers[2].disabledReason, "You don't have money") then
-				Offers.displayPanel.price2.price:setColor("$var-text-cip-store-red")
-			end
+			createBuyTooltipOverlay(Offers.displayPanel.buy2, 'buy2TooltipOverlay', offer.offers[2].disabledReason)
 
 			disabled = true
+		elseif not hasBalance2 then
+			Offers.displayPanel.buy2.onClick = function() end
+			Offers.displayPanel.buy2:setOn(false)
 		else
 			Offers.displayPanel.buy2.onClick = function() buyStoreOffer(offer, offer.offers[2]) end
 		end
 	else
 		Offers.displayPanel.buy2:setVisible(false)
 		Offers.displayPanel.price2:setVisible(false)
+		removeBuyTooltipOverlay('buy2TooltipOverlay')
 	end
 
 	if disabled then
@@ -847,40 +873,14 @@ function Offers:checkOfferValue()
 		local offer = widget.offer
 		for i = #offer.offers, 1, -1 do
 			local subOffer = offer.offers[i]
-			if subOffer.coinType == COIN_TYPE_DEFAULT then -- normal coin
-				if Store.coins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-
-          local slot = i == 2 and 1 or 2
-          if #offer.offers == 1 then
-          	slot = 1
-          end
-          local priceSlot = widget:getChildById("price" .. slot)
-					priceSlot:setColor(widget.grayHover:isVisible() and "$var-text-cip-store-red-disabled" or "$var-text-cip-store-red")
-					widget.coinCheck = true
+			if not hasEnoughCoins(subOffer) then
+				local slot = i == 2 and 1 or 2
+				if #offer.offers == 1 then
+					slot = 1
 				end
-			elseif subOffer.coinType == COIN_TYPE_TRANSFERABLE then -- transfeable coin
-				if Store.transferableCoins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-          local slot = i == 2 and 1 or 2
-          if #offer.offers == 1 then
-          	slot = 1
-          end
-          local priceSlot = widget:getChildById("price" .. slot)
-					priceSlot:setColor((widget.grayHover:isVisible() and "$var-text-cip-store-red-disabled" or "$var-text-cip-store-red"))
-					widget.coinCheck = true
-				end
-			elseif subOffer.coinType == COIN_TYPE_TOURNAMENT then -- tournament coin
-				if Store.tournamentCoins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-          local slot = i == 2 and 1 or 2
-          if #offer.offers == 1 then
-          	slot = 1
-          end
-          local priceSlot = widget:getChildById("price" .. slot)
-					priceSlot:setColor(widget.grayHover:isVisible() and "$var-text-cip-store-red-disabled" or "$var-text-cip-store-red")
-					widget.coinCheck = true
-				end
+				local priceSlot = widget:getChildById("price" .. slot)
+				priceSlot:setColor(widget.grayHover:isVisible() and "$var-text-cip-store-red-disabled" or "$var-text-cip-store-red")
+				widget.coinCheck = true
 			end
 
 			if #subOffer.disabledReasons > 0 and not widget.coinCheck then

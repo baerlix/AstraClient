@@ -55,7 +55,6 @@ function HomeOffer:configure(categoryName, offers, scrolling, homePanel, reasons
 	HomeOffer.dailyOffers = dailyOffers
 
 	Offers.reasons = reasons
-	Offers.reasons[#Offers.reasons + 1] = "You don't have money"
 
 	HomeOffer:createOffers()
 	HomeOffer.lastid = 0
@@ -225,19 +224,6 @@ function HomeOffer:createOffers()
 		for i = #offer.offers, 1, -1 do
 			local subOffer = offer.offers[i]
 			-- check price   subOffer.price
-			if subOffer.coinType == COIN_TYPE_DEFAULT then -- normal coin
-				if Store.coins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-				end
-			elseif subOffer.coinType == COIN_TYPE_TRANSFERABLE then -- transfeable coin
-				if Store.transferableCoins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-				end
-			elseif subOffer.coinType == COIN_TYPE_TOURNAMENT then -- tournament coin
-				if Store.tournamentCoins < subOffer.price then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-				end
-			end
 
 			for _, i in pairs(subOffer.disabledReasons) do
 				subOffer.disabledReason = string.format("%s* %s\n", subOffer.disabledReason, Offers.reasons[i.reasonId])
@@ -395,15 +381,6 @@ function HomeOffer:createDailyOffers()
 		for i = #offer.offers, 1, -1 do
 			local subOffer = offer.offers[i]
 			-- check price   subOffer.price
-			if subOffer.coinType == COIN_TYPE_DEFAULT then -- normal coin
-				if Store.coins < offer.discountPrice then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-				end
-			elseif subOffer.coinType == COIN_TYPE_TRANSFERABLE then -- transfeable coin
-				if Store.transferableCoins < offer.discountPrice then
-					subOffer.disabledReasons[#subOffer.disabledReasons + 1] = {reasonId = #Offers.reasons}
-				end
-			end
 
 
 			for _, i in pairs(subOffer.disabledReasons) do
