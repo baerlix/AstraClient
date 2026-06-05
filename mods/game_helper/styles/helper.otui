@@ -47,7 +47,7 @@ HelperRules < NewHeadlessWindow
       anchors.right: parent.right
       !text: tr('Next')
       size: 43 20
-      enabled: false
+      enabled: true
       @onClick: modules.game_helper:onHelperTermConditionNext()
     CloseButton
       id: close
@@ -58,6 +58,7 @@ HelperRules < NewHeadlessWindow
     CheckBox
       id: termCondition
       width: 300
+      visible: false
       anchors.bottom: parent.bottom
       anchors.left: parent.left
       text-offset: 16 -2

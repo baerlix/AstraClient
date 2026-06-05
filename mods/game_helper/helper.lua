@@ -1215,9 +1215,12 @@ function show()
     helper:raise()
     helper:focus()
     g_keyboard.bindKeyPress('Tab', toggleNextWindow, helper)
-    local success = pcall(function()
+    local success, err = pcall(function()
       loadMenu(lastActiveMenu or 'healingMenu')
     end)
+    if not success then
+      safeLog("error", string.format("Helper: show() - Error loading menu: %s", tostring(err)))
+    end
     if not success or not hasVisibleHelperMenu() then
       showFallbackHelperMenu()
     end
@@ -1274,7 +1277,7 @@ function createHelperRules()
 
   local nextButton = rulesWindow:recursiveGetChildById('next')
   if nextButton then
-    nextButton:setEnabled(false)
+    nextButton:setEnabled(true)
   end
 
   local termsCheckbox = rulesWindow:recursiveGetChildById('termCondition')
@@ -1300,7 +1303,7 @@ function onHelperTermCondition(widgetId, value)
 
   local nextButton = helperRules:recursiveGetChildById('next')
   if nextButton then
-    nextButton:setEnabled(value)
+    nextButton:setEnabled(true)
   end
 end
 
