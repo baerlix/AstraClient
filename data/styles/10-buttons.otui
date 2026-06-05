@@ -151,6 +151,14 @@ MoveDownButton < UIButton
   $disabled:
     image-clip: 0 34 17 17
 
+RemoveButton < UIButton
+  size: 20 20
+  image-source: /images/ui/buttons/button-clear-18x18-up
+  tooltip: Remove
+
+  $pressed:
+    image-source: /images/ui/buttons/button-clear-18x18-down
+
 QtButton < UIButton
   font: cipsoftFont
   size: 106 23

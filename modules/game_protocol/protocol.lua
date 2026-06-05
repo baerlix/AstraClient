@@ -38,9 +38,10 @@ local ServerPackets = {
 }
 
 local ClientPackets = {
-	OpenRewardWall = 0xB4,
-	OpenRewardHistory = 0xB5,
-	SelectReward = 0xB6
+  OpenRewardWall = 0xB4,
+  OpenRewardHistory = 0xB5,
+  SelectReward = 0xB6,
+  Highscores = 0xB1
 }
 
 -- Server Types
@@ -100,6 +101,36 @@ function g_game.dailyRewardConfirm(fromShrine, items)
       msg:addU8(selectedItems[i].count)
     end
   end)
+end
+
+function g_game.highscore(highscoreType, category, vocation, worldName, page, entriesPerPage)
+  local protocolGame = g_game.getProtocolGame()
+  if not protocolGame then
+    return false
+  end
+
+  highscoreType = tonumber(highscoreType) or 0
+  category = tonumber(category) or 0
+  vocation = tonumber(vocation) or 0xFFFFFFFF
+  page = math.max(1, tonumber(page) or 1)
+  entriesPerPage = math.max(5, math.min(30, tonumber(entriesPerPage) or 20))
+
+  local msg = OutputMessage.create()
+  msg:addU8(ClientPackets.Highscores)
+  msg:addU8(highscoreType)
+  msg:addU8(category)
+  msg:addU32(vocation)
+  msg:addString(worldName or "")
+  msg:addU8(0)
+  msg:addU8(0)
+
+  if highscoreType == 0 then
+    msg:addU16(page)
+  end
+
+  msg:addU8(entriesPerPage)
+  protocolGame:send(msg)
+  return true
 end
 
 function init()
@@ -336,41 +367,59 @@ function registerProtocol()
   end)
 
   registerOpcode(ServerPackets.Highscores, function(protocol, msg)
-	msg:getU8()
-	local size = msg:getU8() -- Worlds
-	for i = 1, size do
-		msg:getString() --  World name
-	end
-	msg:getString() -- Selected world
-	local size_2 = msg:getU8() -- Vocations
-	for u = 1, size_2 do
-		msg:getU32() -- Id
-		msg:getString() -- Name
-	end
-	msg:getU32() -- Vocation selected Id
-	local size_3 = msg:getU8() -- Categories
-	for j = 1, size_3 do
-		msg:getU8() -- Id
-		msg:getString() -- Name
-	end
-	msg:getU8() -- Category selected Id
-	msg:getU16() -- Pages
-	msg:getU16() -- Selected page
-	local size_4 = msg:getU8() -- Entries
-	for l = 1, size_4 do
-		msg:getU32() -- Rank
-		msg:getString() -- Character name
-		msg:getString() -- Character title
-		msg:getU8() -- Vocation
-		msg:getString() -- World
-		msg:getU16() -- Level
-		msg:getU8() -- Is player? then highlight
-		msg:getU64() -- Points
-	end
-	msg:getU8()
-	msg:getU8()
-	msg:getU8()
-	msg:getU32() -- Last update
+    local status = msg:getU8()
+    if status ~= 0 then
+      signalcall(g_game.onHighscores, {}, "All Game Worlds", {[0xFFFFFFFF] = "(all)"}, 0xFFFFFFFF, {[0] = "Experience Points"}, 0, 1, 1, {}, os.time())
+      return
+    end
+
+    local worlds = {}
+    local worldCount = msg:getU8()
+    for i = 1, worldCount do
+      worlds[i] = msg:getString()
+    end
+
+    local selectedWorld = msg:getString()
+    msg:getU8() -- Game world category
+    msg:getU8() -- BattlEye world type
+
+    local vocations = {}
+    local vocationCount = msg:getU8()
+    for _ = 1, vocationCount do
+      local vocationId = msg:getU32()
+      vocations[vocationId] = msg:getString()
+    end
+
+    local selectedVocation = msg:getU32()
+    local categories = {}
+    local categoryCount = msg:getU8()
+    for _ = 1, categoryCount do
+      local categoryId = msg:getU8()
+      categories[categoryId] = msg:getString()
+    end
+
+    local selectedCategory = msg:getU8()
+    local page = msg:getU16()
+    local pages = msg:getU16()
+    local characters = {}
+    local characterCount = msg:getU8()
+    for i = 1, characterCount do
+      local rank = msg:getU32()
+      local name = msg:getString()
+      local title = msg:getString()
+      local vocationId = msg:getU8()
+      local world = msg:getString()
+      local level = msg:getU16()
+      local isPlayer = msg:getU8() ~= 0
+      local points = msg:getU64()
+      characters[i] = {rank, name, vocationId, world, level, isPlayer, points, title}
+    end
+
+    msg:getU8()
+    msg:getU8()
+    msg:getU8()
+    local lastUpdate = msg:getU32()
+    signalcall(g_game.onHighscores, worlds, selectedWorld, vocations, selectedVocation, categories, selectedCategory, page, pages, characters, lastUpdate)
   end)
 
   registerOpcode(ServerPackets.Tutorial, function(protocol, msg)

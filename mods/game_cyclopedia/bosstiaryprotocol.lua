@@ -91,6 +91,18 @@ local function parseSlot(msg, unlocked, raceId, isBoosted)
   return slot
 end
 
+local function readSlotCreatureInfo(msg, slot)
+  local hasInfo = msg:getU8() ~= 0
+  if not hasInfo then
+    return
+  end
+
+  local creatureInfo = readCreatureInfo(msg)
+  if slot and slot.raceID and slot.raceID > 0 and cacheCyclopediaMonster then
+    cacheCyclopediaMonster(slot.raceID, creatureInfo)
+  end
+end
+
 local function parseSlots(_, msg)
   local pointsBalance = msg:getU32()
   local pointsNext = msg:getU32()
@@ -101,14 +113,17 @@ local function parseSlots(_, msg)
   local unlocked = msg:getU8() ~= 0
   local raceId = msg:getU32()
   slots[1] = parseSlot(msg, unlocked, raceId, false)
+  readSlotCreatureInfo(msg, slots[1])
 
   unlocked = msg:getU8() ~= 0
   raceId = msg:getU32()
   slots[2] = parseSlot(msg, unlocked, raceId, false)
+  readSlotCreatureInfo(msg, slots[2])
 
   unlocked = msg:getU8() ~= 0
   raceId = msg:getU32()
   slots[3] = parseSlot(msg, unlocked, raceId, true)
+  readSlotCreatureInfo(msg, slots[3])
 
   local selectable = {}
   if msg:getU8() ~= 0 then

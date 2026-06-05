@@ -18,6 +18,14 @@ local filterText = {}
 local slotData = {}
 local availableBosses = {}
 
+local function getBossMonsterList()
+	if getCyclopediaMonsterList then
+		return getCyclopediaMonsterList()
+	end
+
+	return g_things.getMonsterList()
+end
+
 function BosstiarySlot.onSideButtonRedirect()
 	Cyclopedia.open()
 	onOptionChange(cyclopediaOptionsPanel:recursiveGetChildById('8'))
@@ -73,7 +81,7 @@ function BosstiarySlot.showFirstSlot(data, sortText)
 	slotPanel.slot1.slot1Text:setVisible(false)
 
 	local state = data.state
-	local monsterList = g_things.getMonsterList()
+	local monsterList = getBossMonsterList()
 	local firstPanel = slotPanel.slot1.selectedBossPanel.panel1.bossSlotMonsterPanel
 
 	if state == 1 then
@@ -111,6 +119,11 @@ function BosstiarySlot.showFirstSlot(data, sortText)
 			slotPanel.slot1.selectBoss:setVisible(true)
 
 			local monster = monsterList[data.raceID]
+			if not monster then
+				slotPanel.slot1.selectBoss:setVisible(false)
+				return
+			end
+
 			local name = string.capitalize(monster[1])
 			local baseKill = baseKillData[data.category + 1]
 			local baseReward = baseRewardData[data.category + 1]
@@ -195,7 +208,7 @@ function BosstiarySlot.showSecondSlot(data, sortText)
 	slotPanel.slot2.slot1Text:setVisible(false)
 
 	local state = data.state
-	local monsterList = g_things.getMonsterList()
+	local monsterList = getBossMonsterList()
 	local secondPanel = slotPanel.slot2.selectedBossPanel.panel1.bossSlotMonsterPanel
 
 	if state == 1 then
@@ -234,6 +247,11 @@ function BosstiarySlot.showSecondSlot(data, sortText)
 			slotPanel.slot2.selectBoss:setVisible(true)
 
 			local monster = monsterList[data.raceID]
+			if not monster then
+				slotPanel.slot2.selectBoss:setVisible(false)
+				return
+			end
+
 			local name = string.capitalize(monster[1])
 			local baseKill = baseKillData[data.category + 1]
 			local baseReward = baseRewardData[data.category + 1]
@@ -332,7 +350,7 @@ function BosstiarySlot.showBoostedSlot(data)
 	end
 	slotPanel.slot3:setVisible(true)
 
-	local monster = g_things.getMonsterList()[data.raceID]
+	local monster = getBossMonsterList()[data.raceID]
 	if not monster then
 		slotPanel.slot3:setVisible(false)
 		return
