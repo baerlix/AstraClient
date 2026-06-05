@@ -21,13 +21,15 @@ end
 
 function UIResizeBorder:onDestroy()
   if self.hovering then
-    g_mouse.popCursor(self.cursortype)
+    if not g_mouse.restoreNativeCursor() then
+      g_mouse.popCursor(self.cursortype)
+    end
   end
 end
 
 function UIResizeBorder:onHoverChange(hovered)
   if hovered then
-    if g_mouse.isCursorChanged() or g_mouse.isPressed() then return end
+    if not g_mouse.isUsingNativeCursor() and (g_mouse.isCursorChanged() or g_mouse.isPressed()) then return end
     if self:getWidth() > self:getHeight() then
       self.vertical = true
       self.cursortype = 'vertical'
@@ -35,11 +37,15 @@ function UIResizeBorder:onHoverChange(hovered)
       self.vertical = false
       self.cursortype = 'horizontal'
     end
-    g_mouse.pushCursor(self.cursortype)
+    if not g_mouse.applyNativeCursor(self.cursortype) then
+      g_mouse.pushCursor(self.cursortype)
+    end
     self.hovering = true
   else
     if not self:isPressed() and self.hovering then
-      g_mouse.popCursor(self.cursortype)
+      if not g_mouse.restoreNativeCursor() then
+        g_mouse.popCursor(self.cursortype)
+      end
       self.hovering = false
     end
   end
@@ -80,7 +86,9 @@ end
 
 function UIResizeBorder:onMouseRelease(mousePos, mouseButton)
   if not self:isHovered() then
-    g_mouse.popCursor(self.cursortype)
+    if not g_mouse.restoreNativeCursor() then
+      g_mouse.popCursor(self.cursortype)
+    end
     g_effects.fadeOut(self)
     self.hovering = false
   end

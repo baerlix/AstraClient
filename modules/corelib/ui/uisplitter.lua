@@ -16,7 +16,7 @@ function UISplitter:onHoverChange(hovered)
   --]]
 
   if hovered then
-    if g_mouse.isCursorChanged() or g_mouse.isPressed() then return end
+    if not g_mouse.isUsingNativeCursor() and (g_mouse.isCursorChanged() or g_mouse.isPressed()) then return end
     if self:getWidth() > self:getHeight() then
       self.vertical = true
       self.cursortype = 'vertical'
@@ -25,10 +25,14 @@ function UISplitter:onHoverChange(hovered)
       self.cursortype = 'horizontal'
     end
     self.hovering = true
-    g_mouse.pushCursor(self.cursortype)
+    if not g_mouse.applyNativeCursor(self.cursortype) then
+      g_mouse.pushCursor(self.cursortype)
+    end
   else
     if not self:isPressed() and self.hovering then
-      g_mouse.popCursor(self.cursortype)
+      if not g_mouse.restoreNativeCursor() then
+        g_mouse.popCursor(self.cursortype)
+      end
       self.hovering = false
     end
   end
@@ -68,7 +72,9 @@ end
 
 function UISplitter:onMouseRelease(mousePos, mouseButton)
   if not self:isHovered() then
-    g_mouse.popCursor(self.cursortype)
+    if not g_mouse.restoreNativeCursor() then
+      g_mouse.popCursor(self.cursortype)
+    end
     self.hovering = false
   end
 end

@@ -30,8 +30,6 @@
 #include <framework/util/stats.h>
 #include <framework/util/extras.h>
 
-#define HSB_BIT_SET(p, n) (p[(n)/8] |= (128 >>((n)%8)))
-
 WIN32Window::WIN32Window()
 {
     m_window = 0;
@@ -228,8 +226,10 @@ void WIN32Window::terminate()
         m_defaultCursor = NULL;
     }
 
-    for(HCURSOR& cursor : m_cursors)
-        DestroyCursor(cursor);
+    for(CursorState& cursorState : m_cursors) {
+        for(HCURSOR& cursor : cursorState.cursors)
+            DestroyCursor(cursor);
+    }
     m_cursors.clear();
 
     internalDestroyGLContext();
@@ -576,6 +576,22 @@ void WIN32Window::poll()
     while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+    }
+
+    if (m_currentCursorId >= 0 && m_currentCursorId < static_cast<int>(m_cursors.size())) {
+        CursorState& cursorState = m_cursors[m_currentCursorId];
+        if (cursorState.cursors.size() > 1) {
+            int delay = cursorState.delays[m_cursorFrame];
+            if (delay <= 0)
+                delay = 100;
+
+            if (m_cursorTimer.elapsed_millis() >= delay) {
+                m_cursorFrame = (m_cursorFrame + 1) % cursorState.cursors.size();
+                m_cursor = cursorState.cursors[m_cursorFrame];
+                SetCursor(m_cursor);
+                m_cursorTimer.restart();
+            }
+        }
     }
 
     g_dispatcher.addEvent([&] {
@@ -951,25 +967,66 @@ void WIN32Window::displayFatalError(const std::string& message)
 
 int WIN32Window::internalLoadMouseCursor(const ImagePtr& image, const Point& hotSpot)
 {
-    int width = image->getWidth();
-    int height = image->getHeight();
-    int numbits = width * height;
-    int numbytes = (width * height)/8;
+    CursorState cursorState;
+    std::vector<Image::AnimationFrame> frames;
+    if (image->isAnimated())
+        frames = image->getAnimation();
+    else
+        frames.push_back({ image, 0 });
 
-    std::vector<uchar> andMask(numbytes, 0);
-    std::vector<uchar> xorMask(numbytes, 0);
+    for (const auto& frame : frames) {
+        const ImagePtr& frameImage = frame.image;
+        int width = frameImage->getWidth();
+        int height = frameImage->getHeight();
+        int pixelCount = width * height;
+        std::vector<uint32> cursorPixels(pixelCount);
 
-    for(int i=0;i<numbits;++i) {
-        uint32 rgba = stdext::readULE32(image->getPixelData() + i*4);
-        if(rgba == 0xffffffff) { //white
-            HSB_BIT_SET(xorMask, i);
-        } else if(rgba == 0x00000000) { //alpha
-            HSB_BIT_SET(andMask, i);
-        } // otherwise 0xff000000 => black
+        for (int i = 0; i < pixelCount; ++i) {
+            uint8* pixel = reinterpret_cast<uint8*>(&cursorPixels[i]);
+            pixel[2] = *(frameImage->getPixelData() + (i * 4) + 0);
+            pixel[1] = *(frameImage->getPixelData() + (i * 4) + 1);
+            pixel[0] = *(frameImage->getPixelData() + (i * 4) + 2);
+            pixel[3] = *(frameImage->getPixelData() + (i * 4) + 3);
+        }
+
+        const int maskStride = ((width + 31) / 32) * 4;
+        std::vector<uint8> maskPixels(maskStride * height, 0);
+        HBITMAP colorBitmap = CreateBitmap(width, height, 1, 32, &cursorPixels[0]);
+        HBITMAP maskBitmap = CreateBitmap(width, height, 1, 1, &maskPixels[0]);
+        if (!colorBitmap || !maskBitmap) {
+            if (colorBitmap)
+                DeleteObject(colorBitmap);
+            if (maskBitmap)
+                DeleteObject(maskBitmap);
+            for (HCURSOR& loadedCursor : cursorState.cursors)
+                DestroyCursor(loadedCursor);
+            g_logger.error("failed to create cursor bitmap");
+            return -1;
+        }
+
+        ICONINFO iconInfo;
+        iconInfo.fIcon = FALSE;
+        iconInfo.xHotspot = hotSpot.x;
+        iconInfo.yHotspot = hotSpot.y;
+        iconInfo.hbmMask = maskBitmap;
+        iconInfo.hbmColor = colorBitmap;
+
+        HCURSOR cursor = static_cast<HCURSOR>(CreateIconIndirect(&iconInfo));
+        DeleteObject(maskBitmap);
+        DeleteObject(colorBitmap);
+
+        if (!cursor) {
+            for (HCURSOR& loadedCursor : cursorState.cursors)
+                DestroyCursor(loadedCursor);
+            g_logger.error("failed to create colored cursor");
+            return -1;
+        }
+
+        cursorState.cursors.push_back(cursor);
+        cursorState.delays.push_back(frame.delay);
     }
 
-    HCURSOR cursor = CreateCursor(m_instance, hotSpot.x, hotSpot.y, width, height, &andMask[0], &xorMask[0]);
-    m_cursors.push_back(cursor);
+    m_cursors.push_back(cursorState);
     return m_cursors.size()-1;
 }
 
@@ -979,7 +1036,10 @@ void WIN32Window::setMouseCursor(int cursorId)
         if (cursorId >= (int)m_cursors.size() || cursorId < 0)
             return;
 
-        m_cursor = m_cursors[cursorId];
+        m_currentCursorId = cursorId;
+        m_cursorFrame = 0;
+        m_cursor = m_cursors[cursorId].cursors[0];
+        m_cursorTimer.restart();
         SetCursor(m_cursor);
         ShowCursor(true);
     });
@@ -990,7 +1050,52 @@ void WIN32Window::restoreMouseCursor()
     g_graphicsDispatcher.addEvent([&] {
         if (m_cursor) {
             m_cursor = NULL;
+            m_currentCursorId = -1;
+            m_cursorFrame = 0;
             SetCursor(m_defaultCursor);
+            ShowCursor(true);
+        }
+    });
+}
+
+void WIN32Window::setSystemCursor(const std::string& cursorName)
+{
+    g_graphicsDispatcher.addEvent([&, cursorName] {
+        LPCTSTR cursorId = IDC_ARROW;
+
+        if (cursorName == "horizontal" || cursorName == "sizewe")
+            cursorId = IDC_SIZEWE;
+        else if (cursorName == "vertical" || cursorName == "sizens")
+            cursorId = IDC_SIZENS;
+        else if (cursorName == "diagonal1" || cursorName == "sizenwse")
+            cursorId = IDC_SIZENWSE;
+        else if (cursorName == "diagonal2" || cursorName == "sizenesw")
+            cursorId = IDC_SIZENESW;
+        else if (cursorName == "move" || cursorName == "sizeall")
+            cursorId = IDC_SIZEALL;
+        else if (cursorName == "text" || cursorName == "ibeam")
+            cursorId = IDC_IBEAM;
+        else if (cursorName == "hand" || cursorName == "pointer" || cursorName == "link")
+            cursorId = IDC_HAND;
+        else if (cursorName == "cross" || cursorName == "target" || cursorName == "precision")
+            cursorId = IDC_CROSS;
+        else if (cursorName == "wait" || cursorName == "hourglass")
+            cursorId = IDC_WAIT;
+        else if (cursorName == "no" || cursorName == "forbidden")
+            cursorId = IDC_NO;
+        else if (cursorName == "help")
+            cursorId = IDC_HELP;
+        else if (cursorName == "appstarting")
+            cursorId = IDC_APPSTARTING;
+        else if (cursorName == "uparrow")
+            cursorId = IDC_UPARROW;
+
+        HCURSOR cursor = LoadCursor(NULL, cursorId);
+        if (cursor) {
+            m_currentCursorId = -1;
+            m_cursorFrame = 0;
+            m_cursor = cursor;
+            SetCursor(m_cursor);
             ShowCursor(true);
         }
     });

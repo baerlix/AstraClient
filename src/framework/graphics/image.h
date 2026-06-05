@@ -66,8 +66,18 @@ public:
 
     static ImagePtr fromQRCode(const std::string& code, int border);
 
+    struct AnimationFrame {
+        ImagePtr image;
+        int delay;
+    };
+
+    bool isAnimated() const { return !m_animation.empty(); }
+    const std::vector<AnimationFrame>& getAnimation() const { return m_animation; }
+    void addAnimationFrame(const ImagePtr& image, int delay) { m_animation.push_back({ image, delay }); }
+
 private:
     std::vector<uint8> m_pixels;
+    std::vector<AnimationFrame> m_animation;
     Size m_size;
     int m_bpp;
 };

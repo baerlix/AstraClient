@@ -1633,10 +1633,17 @@ void UIWidget::onChildFocusChange(const UIWidgetPtr& focusedChild, const UIWidge
 void UIWidget::onHoverChange(bool hovered)
 {
     if (m_changeCursorImage) {
-        if (hovered && !g_mouse.isCursorChanged())
-            g_mouse.pushCursor(m_cursor);
-        else
-            g_mouse.popCursor(m_cursor);
+        if (g_mouse.isUsingNativeCursor()) {
+            if (hovered && !g_mouse.isCursorChanged())
+                g_window.setSystemCursor(m_cursor);
+            else
+                g_window.restoreMouseCursor();
+        } else {
+            if (hovered && !g_mouse.isCursorChanged())
+                g_mouse.pushCursor(m_cursor);
+            else
+                g_mouse.popCursor(m_cursor);
+        }
     }
 
     if (isDisabled() && !hovered && g_mouse.isCursorChanged()) {

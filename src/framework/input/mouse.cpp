@@ -48,6 +48,10 @@ void Mouse::loadCursors(std::string filename)
             addCursor(cursorNode->tag(),
                       stdext::resolve_path(cursorNode->valueAt("image"), cursorNode->source()),
                       cursorNode->valueAt<Point>("hot-spot"));
+
+        auto it = m_cursors.find("native");
+        if (it != m_cursors.end())
+            g_window.setMouseCursor(it->second);
     } catch(stdext::exception& e) {
         g_logger.error(stdext::format("unable to load cursors file: %s", e.what()));
     }
@@ -69,6 +73,9 @@ void Mouse::addCursor(const std::string& name, const std::string& file, const Po
 
 void Mouse::pushCursor(const std::string& name)
 {
+    if (m_useNativeCursor)
+        return;
+
     if (g_graphicsThreadId != std::this_thread::get_id()) {
         g_graphicsDispatcher.addEvent(std::bind(&Mouse::pushCursor, this, name));
         return;
@@ -113,8 +120,22 @@ void Mouse::popCursor(const std::string& name)
 
     if(m_cursorStack.size() > 0)
         g_window.setMouseCursor(m_cursorStack.back());
-    else
-        g_window.restoreMouseCursor();
+    else {
+        auto it = m_cursors.find("native");
+        if (it != m_cursors.end())
+            g_window.setMouseCursor(it->second);
+        else
+            g_window.restoreMouseCursor();
+    }
+}
+
+int Mouse::getCursorId(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_cursors.find(name);
+    if (it != m_cursors.end())
+        return it->second;
+    return -1;
 }
 
 bool Mouse::isCursorChanged()

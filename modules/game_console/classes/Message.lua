@@ -401,8 +401,12 @@ function onTextHoverChange(widget, index, hovered)
     end
 
     if isKeyWord and hovered then
-        g_mouse.pushCursor("pointer")
+        if not g_mouse.applyNativeCursor("pointer") then
+            g_mouse.pushCursor("pointer")
+        end
     else
-        g_mouse.popCursor("pointer")
+        if not g_mouse.restoreNativeCursor() then
+            g_mouse.popCursor("pointer")
+        end
     end
 end

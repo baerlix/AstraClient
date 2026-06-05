@@ -60,6 +60,14 @@ ImagePtr Image::loadPNG(const std::string& file)
     apng_data apng;
     if(load_apng(fin, &apng) == 0) {
         image = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata);
+        if (apng.num_frames > 1 && apng.frames_delay) {
+            const size_t frameSize = static_cast<size_t>(apng.width) * apng.height * apng.bpp;
+            const uint32_t frameCount = std::min(apng.num_frames, apng.last_frame);
+            for (uint32_t i = 0; i < frameCount; ++i) {
+                auto frame = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata + (static_cast<size_t>(i) * frameSize));
+                image->addAnimationFrame(frame, apng.frames_delay[i]);
+            }
+        }
         free_apng(&apng);
     }
     return image;
@@ -73,6 +81,14 @@ ImagePtr Image::loadPNG(const void* data, uint32_t size)
     apng_data apng;
     if (load_apng(fin, &apng) == 0) {
         image = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata);
+        if (apng.num_frames > 1 && apng.frames_delay) {
+            const size_t frameSize = static_cast<size_t>(apng.width) * apng.height * apng.bpp;
+            const uint32_t frameCount = std::min(apng.num_frames, apng.last_frame);
+            for (uint32_t i = 0; i < frameCount; ++i) {
+                auto frame = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata + (static_cast<size_t>(i) * frameSize));
+                image->addAnimationFrame(frame, apng.frames_delay[i]);
+            }
+        }
         free_apng(&apng);
     }
     return image;

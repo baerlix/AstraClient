@@ -43,11 +43,62 @@ if not g_mouse.grabbedMouse then
   g_mouse.grabbedMouse = {}
 end
 
+local systemCursorByName = {
+  horizontal = 'horizontal',
+  vertical = 'vertical',
+  pointer = 'hand',
+  target = 'cross',
+  text = 'text'
+}
+
+function g_mouse.applyNativeCursor(mouse)
+  if not g_mouse.isUsingNativeCursor or not g_mouse.isUsingNativeCursor() then
+    return false
+  end
+
+  if not g_window or not g_window.setSystemCursor then
+    return false
+  end
+
+  g_window.setSystemCursor(systemCursorByName[mouse] or mouse)
+  return true
+end
+
+function g_mouse.restoreNativeCursor()
+  if not g_mouse.isUsingNativeCursor or not g_mouse.isUsingNativeCursor() then
+    return false
+  end
+
+  if not g_window or not g_window.restoreMouseCursor then
+    return false
+  end
+
+  g_window.restoreMouseCursor()
+  return true
+end
+
+function g_mouse.getActiveGrabberCursor()
+  for _, mouse in pairs(g_mouse.grabbedMouse) do
+    if mouse ~= '' then
+      return mouse
+    end
+  end
+
+  return nil
+end
+
 function g_mouse.updateGrabber(widget, mouse)
   if not g_mouse.grabbedMouse[widget] then
     g_mouse.grabbedMouse[widget] = mouse
+    g_mouse.applyNativeCursor(mouse)
   else
     g_mouse.grabbedMouse[widget] = nil
+    local nextMouse = g_mouse.getActiveGrabberCursor()
+    if nextMouse then
+      g_mouse.applyNativeCursor(nextMouse)
+    else
+      g_mouse.restoreNativeCursor()
+    end
   end
 end
 
@@ -59,4 +110,5 @@ function g_mouse.clearGrabber()
     widget:ungrabMouse()
   end
   g_mouse.grabbedMouse = {}
+  g_mouse.restoreNativeCursor()
 end

@@ -36,6 +36,7 @@ public:
     ~UIMap();
 
     bool onMouseMove(const Point& mousePos, const Point& mouseMoved);
+    void onHoverChange(bool hovered) override;
 
     void drawSelf(Fw::DrawPane drawPane);
 
@@ -66,6 +67,8 @@ public:
     void setLimitVisibleRange(bool limitVisibleRange) { m_limitVisibleRange = limitVisibleRange; updateVisibleDimension(); }
     void setFloorFading(int value) { m_mapView->setFloorFading(value); }
     void setCrosshair(const std::string& type) { m_mapView->setCrosshair(type); }
+    void setCursorAnimations(bool enable) { m_cursorAnimations = enable; }
+    bool hasCursorAnimations() { return m_cursorAnimations; }
     bool isMultifloor() { return m_mapView->isMultifloor(); }
     bool isDrawingTexts() { return m_mapView->isDrawingTexts(); }
     bool isDrawingNames() { return m_mapView->isDrawingNames(); }
@@ -108,6 +111,8 @@ protected:
 private:
     void updateVisibleDimension();
     void updateMapSize();
+    void resetCursorToDefault();
+    void updateCursor(const TilePtr& tile);
 
     int m_zoom;
     MapViewPtr m_mapView;
@@ -116,6 +121,7 @@ private:
     float m_aspectRatio;
     bool m_keepAspectRatio;
     bool m_limitVisibleRange;
+    bool m_cursorAnimations;
     int m_maxZoomIn;
     int m_maxZoomOut;
 };

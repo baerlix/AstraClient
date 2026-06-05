@@ -35,6 +35,9 @@ public:
     void addCursor(const std::string& name, const std::string& file, const Point& hotSpot);
     void pushCursor(const std::string& name);
     void popCursor(const std::string& name);
+    int getCursorId(const std::string& name);
+    void setUseNativeCursor(bool enable) { m_useNativeCursor = enable; }
+    bool isUsingNativeCursor() { return m_useNativeCursor; }
     bool isCursorChanged();
     bool isPressed(Fw::MouseButton mouseButton);
 
@@ -42,6 +45,7 @@ private:
     std::map<std::string, int> m_cursors;
     std::deque<int> m_cursorStack;
     std::mutex m_mutex;
+    bool m_useNativeCursor = false;
 };
 
 extern Mouse g_mouse;

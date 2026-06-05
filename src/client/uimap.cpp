@@ -28,6 +28,8 @@
 #include <framework/graphics/graphics.h>
 #include <framework/util/extras.h>
 #include <framework/graphics/shadermanager.h>
+#include <framework/input/mouse.h>
+#include <framework/platform/platformwindow.h>
 #include "localplayer.h"
 
 UIMap::UIMap()
@@ -37,6 +39,7 @@ UIMap::UIMap()
     m_zoom = m_mapView->getVisibleDimension().height();
     m_keepAspectRatio = true;
     m_limitVisibleRange = false;
+    m_cursorAnimations = true;
     m_aspectRatio = m_mapView->getVisibleDimension().ratio();
     m_maxZoomIn = 3;
     m_maxZoomOut = 513;
@@ -52,7 +55,15 @@ UIMap::~UIMap()
 bool UIMap::onMouseMove(const Point& mousePos, const Point& mouseMoved) 
 {
     m_mousePosition = mousePos;
+    updateCursor(getTile(mousePos));
     return UIWidget::onMouseMove(mousePos, mouseMoved);
+}
+
+void UIMap::onHoverChange(bool hovered)
+{
+    UIWidget::onHoverChange(hovered);
+    if (!hovered)
+        resetCursorToDefault();
 }
 
 void UIMap::drawSelf(Fw::DrawPane drawPane)
@@ -165,6 +176,59 @@ TilePtr UIMap::getTile(const Point& mousePos)
         return nullptr;
 
     return tile;
+}
+
+void UIMap::resetCursorToDefault()
+{
+    if (!m_cursorAnimations || g_mouse.isCursorChanged() || g_mouse.isUsingNativeCursor())
+        return;
+
+    int cursorId = g_mouse.getCursorId("native");
+    if (cursorId != -1)
+        g_window.setMouseCursor(cursorId);
+    else
+        g_window.restoreMouseCursor();
+}
+
+void UIMap::updateCursor(const TilePtr& tile)
+{
+    if (!m_cursorAnimations || g_mouse.isCursorChanged() || g_mouse.isUsingNativeCursor())
+        return;
+
+    const char* cursorName = nullptr;
+    if (tile) {
+        if (CreaturePtr creature = tile->getTopCreature()) {
+            if (creature->isMonster())
+                cursorName = "attacker";
+            else if (creature->isNpc())
+                cursorName = "talk";
+        }
+
+        if (!cursorName) {
+            if (ThingPtr thing = tile->getTopUseThing()) {
+                if (thing->isContainer() || thing->isLyingCorpse()) {
+                    const bool quickLootActive = g_game.getFeature(Otc::GameQuickLootFlags) || g_game.getFeature(Otc::GameTibia12Protocol);
+                    cursorName = thing->isLyingCorpse() && quickLootActive ? "quickloot" : "open";
+                } else if (thing->isUsable()) {
+                    cursorName = "use";
+                }
+            }
+        }
+
+        if (!cursorName && tile->isWalkable())
+            cursorName = "walk";
+    }
+
+    if (!cursorName) {
+        resetCursorToDefault();
+        return;
+    }
+
+    int cursorId = g_mouse.getCursorId(cursorName);
+    if (cursorId != -1)
+        g_window.setMouseCursor(cursorId);
+    else
+        resetCursorToDefault();
 }
 
 void UIMap::onStyleApply(const std::string& styleName, const OTMLNodePtr& styleNode)

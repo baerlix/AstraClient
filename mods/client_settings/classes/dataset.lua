@@ -454,7 +454,25 @@ return {
 	nativeMouseCursor = {
 		value = false,
         apply = function(value)
-            g_window.setUseNativeCursor(value)
+            g_mouse.setUseNativeCursor(value)
+            if value then
+                g_window.restoreMouseCursor()
+            end
+            local gameMapPanel = m_interface.getMapPanel()
+            if gameMapPanel then
+                gameMapPanel:setCursorAnimations(not value and GameOptions:getOption('mouseAnimatedCursor') ~= false)
+            end
+            return true
+        end,
+	},
+
+	mouseAnimatedCursor = {
+		value = true,
+        apply = function(value)
+            local gameMapPanel = m_interface.getMapPanel()
+            if gameMapPanel then
+                gameMapPanel:setCursorAnimations(value and not GameOptions:getOption('nativeMouseCursor'))
+            end
             return true
         end,
 	},

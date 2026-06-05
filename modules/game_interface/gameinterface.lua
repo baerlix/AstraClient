@@ -106,6 +106,7 @@ function init()
   gameMapPanel:insertLuaCall("onGeometryChange")
   setupLeftActions()
   refreshViewMode()
+  applyMouseCursorOptions()
 
   lastAction = 0
   bindKeys()
@@ -169,9 +170,29 @@ function onMouseRelease(widget, pos, button)
   widgetItem:setPosition(g_window.getMousePosition())
 end
 
+function applyMouseCursorOptions()
+  if not gameMapPanel then
+    return
+  end
+
+  local nativeCursor = m_settings.getOption('nativeMouseCursor') == true
+  local animatedCursor = m_settings.getOption('mouseAnimatedCursor')
+  if animatedCursor == nil then
+    animatedCursor = true
+  end
+
+  g_mouse.setUseNativeCursor(nativeCursor)
+  gameMapPanel:setCursorAnimations(animatedCursor and not nativeCursor)
+
+  if nativeCursor then
+    g_window.restoreMouseCursor()
+  end
+end
+
 function onGameStart()
   local benchmark = g_clock.millis()
   refreshViewMode()
+  applyMouseCursorOptions()
   show()
 
   local player = g_game.getLocalPlayer()

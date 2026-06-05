@@ -71,6 +71,7 @@ public:
 
     void setMouseCursor(int cursorId);
     void restoreMouseCursor();
+    void setSystemCursor(const std::string& cursorName) override;
 
     void setTitle(const std::string& title);
     void setMinimumSize(const Size& minimumSize);
@@ -93,7 +94,15 @@ private:
     Rect getWindowRect();
     Rect adjustWindowRect(const Rect& rect);
 
-    std::vector<HCURSOR> m_cursors;
+    struct CursorState {
+        std::vector<HCURSOR> cursors;
+        std::vector<int> delays;
+    };
+
+    std::vector<CursorState> m_cursors;
+    int m_currentCursorId = -1;
+    size_t m_cursorFrame = 0;
+    stdext::timer m_cursorTimer;
     HWND m_window;
     HINSTANCE m_instance;
     HDC m_deviceContext;
