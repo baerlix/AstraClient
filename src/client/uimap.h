@@ -67,7 +67,7 @@ public:
     void setLimitVisibleRange(bool limitVisibleRange) { m_limitVisibleRange = limitVisibleRange; updateVisibleDimension(); }
     void setFloorFading(int value) { m_mapView->setFloorFading(value); }
     void setCrosshair(const std::string& type) { m_mapView->setCrosshair(type); }
-    void setCursorAnimations(bool enable) { m_cursorAnimations = enable; }
+    void setCursorAnimations(bool enable);
     bool hasCursorAnimations() { return m_cursorAnimations; }
     bool isMultifloor() { return m_mapView->isMultifloor(); }
     bool isDrawingTexts() { return m_mapView->isDrawingTexts(); }
@@ -122,6 +122,7 @@ private:
     bool m_keepAspectRatio;
     bool m_limitVisibleRange;
     bool m_cursorAnimations;
+    int m_currentCursorId;
     int m_maxZoomIn;
     int m_maxZoomOut;
 };

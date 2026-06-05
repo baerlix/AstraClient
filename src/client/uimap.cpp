@@ -40,6 +40,7 @@ UIMap::UIMap()
     m_keepAspectRatio = true;
     m_limitVisibleRange = false;
     m_cursorAnimations = true;
+    m_currentCursorId = -1;
     m_aspectRatio = m_mapView->getVisibleDimension().ratio();
     m_maxZoomIn = 3;
     m_maxZoomOut = 513;
@@ -180,9 +181,10 @@ TilePtr UIMap::getTile(const Point& mousePos)
 
 void UIMap::resetCursorToDefault()
 {
-    if (!m_cursorAnimations || g_mouse.isCursorChanged() || g_mouse.isUsingNativeCursor())
+    if (g_mouse.isCursorChanged() || g_mouse.isUsingNativeCursor())
         return;
 
+    m_currentCursorId = -1;
     int cursorId = g_mouse.getCursorId("native");
     if (cursorId != -1)
         g_window.setMouseCursor(cursorId);
@@ -220,14 +222,23 @@ void UIMap::updateCursor(const TilePtr& tile)
     }
 
     if (!cursorName) {
-        resetCursorToDefault();
         return;
     }
 
     int cursorId = g_mouse.getCursorId(cursorName);
-    if (cursorId != -1)
+    if (cursorId != -1 && cursorId != m_currentCursorId) {
+        m_currentCursorId = cursorId;
         g_window.setMouseCursor(cursorId);
-    else
+    }
+}
+
+void UIMap::setCursorAnimations(bool enable)
+{
+    if (m_cursorAnimations == enable)
+        return;
+
+    m_cursorAnimations = enable;
+    if (!m_cursorAnimations)
         resetCursorToDefault();
 }
 
