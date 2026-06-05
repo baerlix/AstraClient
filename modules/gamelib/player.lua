@@ -31,6 +31,7 @@ PlayerStates = {
   CurseIV = 16777216,
   CurseV = 33554432,
   NewMagicShield = 67108864,
+  NewManaShield = 67108864,
   Agony = 134217728,
   Powerless = 268435456,
   Mentored = 536870912,

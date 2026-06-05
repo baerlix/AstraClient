@@ -135,8 +135,8 @@ local function hasMagicShield()
   if not player then return false end
   local states = player:getStates()
   if not states then return false end
-  -- Check both ManaShield (5) and NewManaShield (27)
-  return bit.band(states, PlayerStates.ManaShield) ~= 0 or bit.band(states, PlayerStates.NewManaShield) ~= 0
+  local newMagicShield = PlayerStates.NewMagicShield or PlayerStates.NewManaShield or 0
+  return bit.band(states, PlayerStates.ManaShield) ~= 0 or bit.band(states, newMagicShield) ~= 0
 end
 
 -- Get spell cooldown from _Helper

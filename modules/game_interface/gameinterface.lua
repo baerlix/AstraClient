@@ -2348,14 +2348,15 @@ function onPlayerUnload()
   for i = 1, count do
     config.openWidgetsOrderPerSidebar[#config.openWidgetsOrderPerSidebar + 1] = {}
     for z, a in pairs(gameRightPanels:getChildByIndex(i):getChildren()) do
-      if a:getType() and (a:isOpened() or a:getType() == 'miniMap') then
-        local tt = {type = a:getType()}
+      local widgetType = a.getType and a:getType()
+      if widgetType and (a:isOpened() or widgetType == 'miniMap') then
+        local tt = {type = widgetType}
         if a.instance then
           tt.instance = a.instance
         end
 
         tt.minimized = a.minimized
-        if a:getType() == "inventoryWindow" or a:getType() == "mainButtonsWindow" then
+        if widgetType == "inventoryWindow" or widgetType == "mainButtonsWindow" then
           tt.minimized = a.minimized or false
         end
 
@@ -2376,14 +2377,15 @@ function onPlayerUnload()
   for i = 1, config.leftSidebarCount do
     config.openWidgetsOrderPerSidebar[#config.openWidgetsOrderPerSidebar + 1] = {}
     for z, a in pairs(gameLeftPanels:getChildByIndex(i):getChildren()) do
-      if a:getType() and (a:isOpened() or a:getType() == 'miniMap') then
-        local tt = {type = a:getType()}
+      local widgetType = a.getType and a:getType()
+      if widgetType and (a:isOpened() or widgetType == 'miniMap') then
+        local tt = {type = widgetType}
         if a.instance then
           tt.instance = a.instance
         end
 
         tt.minimized = a.minimized
-        if a:getType() == "inventoryWindow" or a:getType() == "mainButtonsWindow" then
+        if widgetType == "inventoryWindow" or widgetType == "mainButtonsWindow" then
           tt.minimized = a.minimized or false
         end
 
@@ -2402,14 +2404,15 @@ function onPlayerUnload()
   end
 
   for z, a in pairs(horizontalRightPanel:getChildren()) do
-    if a:getType() and a.isOpen then
-      local tt = {type = a:getType()}
+    local widgetType = a.getType and a:getType()
+    if widgetType and a.isOpen then
+      local tt = {type = widgetType}
       if a.instance then
         tt.instance = a.instance
       end
 
       tt.minimized = a.minimized
-      if a:getType() == "inventoryWindow" or a:getType() == "mainButtonsWindow" then
+      if widgetType == "inventoryWindow" or widgetType == "mainButtonsWindow" then
         tt.minimized = a.minimized or false
       end
 
@@ -2425,14 +2428,15 @@ function onPlayerUnload()
     end
   end
   for z, a in pairs(horizontalLeftPanel:getChildren()) do
-    if a:getType() and a.isOpen then
-      local tt = {type = a:getType()}
+    local widgetType = a.getType and a:getType()
+    if widgetType and a.isOpen then
+      local tt = {type = widgetType}
       if a.instance then
         tt.instance = a.instance
       end
 
       tt.minimized = a.minimized
-      if a:getType() == "inventoryWindow" or a:getType() == "mainButtonsWindow" then
+      if widgetType == "inventoryWindow" or widgetType == "mainButtonsWindow" then
         tt.minimized = a.minimized or false
       end
 

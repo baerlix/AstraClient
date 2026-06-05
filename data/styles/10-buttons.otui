@@ -126,3 +126,6 @@ ImageButton < UIButton
   image-border: 3
   text-offset: 0 1
   color: #e0e0e0
+
+CloseButton < Button
+  !text: tr('Close')
