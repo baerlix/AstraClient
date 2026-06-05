@@ -60,6 +60,9 @@ local function onWidgetHoverChange(widget, hovered)
         g_tooltip.display(widget)
       end
       currentHoveredWidget = widget
+    elseif widget.parseColoreDisplay and not g_mouse.isPressed() then
+      g_tooltip.parseColoreDisplay(widget.parseColoreDisplay)
+      currentHoveredWidget = widget
     end
   else
     if widget == currentHoveredWidget then
@@ -69,7 +72,7 @@ local function onWidgetHoverChange(widget, hovered)
   end
 
   -- Hotfix
-  if not widget.tooltip then
+  if not widget.tooltip and not widget.parseColoreDisplay then
     g_tooltip.hide()
     currentHoveredWidget = nil
   end
@@ -84,6 +87,27 @@ local function onWidgetStyleApply(widget, styleName, styleNode)
     widget.tooltipFont = styleNode["tooltip-font"]
   elseif styleNode["tooltip-delayed"] then
     widget.tooltipDelayed = styleNode["tooltip-delayed"]
+  end
+
+  local tooltipWidget = widget:getChildById('toolTipWidget')
+  if widget:getId() == 'toolTipWidget' then
+    tooltipWidget = widget
+    widget = widget:getParent()
+  end
+  if tooltipWidget then
+    if widget.tooltip then
+      tooltipWidget.tooltip = widget.tooltip
+      widget.tooltip = nil
+    end
+    if widget.parseColoreDisplay then
+      tooltipWidget.parseColoreDisplay = widget.parseColoreDisplay
+      widget.parseColoreDisplay = nil
+    end
+    if tooltipWidget.tooltip or tooltipWidget.parseColoreDisplay then
+      tooltipWidget:setOpacity(1)
+    else
+      tooltipWidget:setOpacity(0.4)
+    end
   end
 end
 
@@ -178,6 +202,29 @@ function g_tooltip.displayText(text)
   })
 end
 
+function g_tooltip.parseColoreDisplay(text)
+  if not text or text:len() == 0 then return end
+  if not toolTipLabel then return end
+
+  toolTipLabel:setColorText(text)
+  toolTipLabel:setFont("Verdana Bold-11px")
+  toolTipLabel:resizeToText()
+  toolTipLabel:resize(toolTipLabel:getWidth() + 8, toolTipLabel:getHeight() + 4)
+  toolTipLabel:setBackgroundColor("#c0c0c0")
+  toolTipLabel:setColor("#3f3f3f")
+  toolTipLabel:setBorderWidth(1)
+  toolTipLabel:setBorderColor("#000000")
+  toolTipLabel:show()
+  toolTipLabel:raise()
+  toolTipLabel:enable()
+  g_effects.fadeIn(toolTipLabel, 100)
+  moveToolTip(true)
+
+  connect(rootWidget, {
+    onMouseMove = moveToolTip,
+  })
+end
+
 function g_tooltip.hide()
   g_effects.fadeOut(toolTipLabel, 100)
   toolTipLabel:hide()
@@ -190,15 +237,30 @@ end
 
 -- UIWidget extensions
 function UIWidget:setTooltip(text)
-  self.tooltip = text
+  local tooltipWidget = self:getChildById('toolTipWidget')
+  if tooltipWidget then
+    tooltipWidget.tooltip = text
+  else
+    self.tooltip = text
+  end
 end
 
 function UIWidget:setTooltipFont(font)
   self.tooltipFont = font
 end
 
+function UIWidget:parseColoreDisplayToolTip(text)
+  local tooltipWidget = self:getChildById('toolTipWidget')
+  if tooltipWidget then
+    tooltipWidget.parseColoreDisplay = text
+  else
+    self.parseColoreDisplay = text
+  end
+end
+
 function UIWidget:removeTooltip()
   self.tooltip = nil
+  self.parseColoreDisplay = nil
 end
 
 function UIWidget:getTooltip()
