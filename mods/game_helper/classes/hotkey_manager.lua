@@ -7,6 +7,7 @@ _Helper.HotkeyManager = {}
 local hotkeyManager = _Helper.HotkeyManager
 
 local helperWidget = nil
+local executingHotkeyKeyCode = nil
 
 local function getAssignBlockedKeys()
   if type(AssignBlockedKeys) == 'table' then
@@ -30,26 +31,82 @@ local function containsHotkey(list, value)
   return false
 end
 
+local function getGameRootPanel()
+  if rootWidget and rootWidget.getChildById then
+    return rootWidget:getChildById('gameRootPanel')
+  end
+  return nil
+end
+
+local function bindHelperKeyDown(code, callback)
+  if not g_keyboard or not code or code == '' or not callback then
+    return
+  end
+
+  g_keyboard.bindKeyDown(code, callback)
+
+  local gameRootPanel = getGameRootPanel()
+  if gameRootPanel then
+    g_keyboard.bindKeyDown(code, callback, gameRootPanel)
+  end
+end
+
+local function unbindHelperKeyDown(code, callback)
+  if not g_keyboard or not code or code == '' then
+    return
+  end
+
+  g_keyboard.unbindKeyDown(code, callback)
+
+  local gameRootPanel = getGameRootPanel()
+  if gameRootPanel then
+    g_keyboard.unbindKeyDown(code, callback, gameRootPanel)
+  end
+end
+
+local function isFunctionKey(keyCode)
+  return keyCode and keyCode >= KeyF1 and keyCode <= KeyF12
+end
+
+local function makeBoundToggle(def)
+  local toggleFunc = def.makeToggle()
+  return function(widget, keyCode, ...)
+    local previousKeyCode = executingHotkeyKeyCode
+    executingHotkeyKeyCode = keyCode
+    local ok, err = pcall(toggleFunc, widget, keyCode, ...)
+    executingHotkeyKeyCode = previousKeyCode
+    if not ok then
+      error(err)
+    end
+    return true
+  end
+end
+
 function hotkeyManager.setHelperWidget(widget)
   helperWidget = widget
 end
 
 -- Verifica se as hotkeys do helper podem ser ativadas
--- Retorna false se o chat estiver habilitado ou se algum campo de texto estiver focado
+-- Retorna false em janelas bloqueantes e em campos de texto quando nao for F1-F12.
 local function canExecuteHelperHotkey()
-  if modules.game_console and modules.game_console.isChatEnabled then
-    if modules.game_console.isChatEnabled() then
-      return false
-    end
+  local allowTextFocus = isFunctionKey(executingHotkeyKeyCode)
+
+  local consoleTextEdit = modules.game_console and modules.game_console.getConsole and modules.game_console.getConsole()
+  if not allowTextFocus and consoleTextEdit and consoleTextEdit.isFocused and consoleTextEdit:isFocused() then
+    return false
+  end
+
+  if modules.game_interface and modules.game_interface.isInternalLocked and modules.game_interface.isInternalLocked() then
+    return false
   end
 
   if modules.game_npctrade and modules.game_npctrade.npcWindow then
     local npcWindow = modules.game_npctrade.npcWindow
     if npcWindow:isVisible() then
-      if modules.game_npctrade.searchText and modules.game_npctrade.searchText:isFocused() then
+      if not allowTextFocus and modules.game_npctrade.searchText and modules.game_npctrade.searchText:isFocused() then
         return false
       end
-      if modules.game_npctrade.amountText and modules.game_npctrade.amountText:isFocused() then
+      if not allowTextFocus and modules.game_npctrade.amountText and modules.game_npctrade.amountText:isFocused() then
         return false
       end
     end
@@ -59,7 +116,7 @@ local function canExecuteHelperHotkey()
     local modalDialog = modules.game_modaldialog.modalDialog
     if modalDialog:isVisible() then
       local searchInput = modalDialog:recursiveGetChildById('searchInput')
-      if searchInput and searchInput:isFocused() then
+      if not allowTextFocus and searchInput and searchInput:isFocused() then
         return false
       end
     end
@@ -67,7 +124,7 @@ local function canExecuteHelperHotkey()
 
   local storeUI = modules.game_store and modules.game_store.getUI and modules.game_store.getUI()
   if storeUI and storeUI:isVisible() and storeUI.SearchEdit then
-    if storeUI.SearchEdit:isFocused() then
+    if not allowTextFocus and storeUI.SearchEdit:isFocused() then
       return false
     end
   end
@@ -85,9 +142,24 @@ local HOTKEY_DEFS = {
     makeToggle = function()
       return function()
         if not canExecuteHelperHotkey() then return end
-        helperAutomaticFunctionsEnabled = not helperAutomaticFunctionsEnabled
-        botStatus()
-        _Helper.Shortcut.syncButton('shortcutHelper', helperAutomaticFunctionsEnabled)
+        if toggleHelperFunctions then
+          toggleHelperFunctions()
+          return
+        end
+
+        if _Helper.setHelperAutomaticFunctionsEnabled and _Helper.isHelperAutomaticFunctionsEnabled then
+          local enabled = not _Helper.isHelperAutomaticFunctionsEnabled()
+          _Helper.setHelperAutomaticFunctionsEnabled(enabled)
+          if botStatus then
+            botStatus()
+          end
+          if _Helper.Shortcut and _Helper.Shortcut.syncButton then
+            _Helper.Shortcut.syncButton('shortcutHelper', enabled)
+          end
+          if saveSettings then
+            saveSettings()
+          end
+        end
       end
     end,
   },
@@ -311,7 +383,7 @@ function hotkeyManager.unregister(def)
   local code = helperConfig[def.codeKey]
   local func = helperConfig[def.funcKey]
   if code and code ~= "" and func then
-    g_keyboard.unbindKeyDown(code, func)
+    unbindHelperKeyDown(code, func)
   end
   helperConfig[def.funcKey] = nil
 end
@@ -326,9 +398,9 @@ end
 function hotkeyManager.register(def)
   local code = helperConfig[def.codeKey]
   if code and code ~= "" then
-    local toggleFunc = def.makeToggle()
+    local toggleFunc = makeBoundToggle(def)
     helperConfig[def.funcKey] = toggleFunc
-    g_keyboard.bindKeyDown(code, toggleFunc)
+    bindHelperKeyDown(code, toggleFunc)
   end
 end
 
@@ -352,9 +424,9 @@ function hotkeyManager.clearConflicting(keyCombo)
   for _, def in ipairs(HOTKEY_DEFS) do
     if helperConfig[def.codeKey] == keyCombo then
       if helperConfig[def.funcKey] then
-        g_keyboard.unbindKeyDown(keyCombo, helperConfig[def.funcKey])
+        unbindHelperKeyDown(keyCombo, helperConfig[def.funcKey])
       else
-        g_keyboard.unbindKeyDown(keyCombo)
+        unbindHelperKeyDown(keyCombo)
       end
       helperConfig[def.codeKey] = ""
       helperConfig[def.funcKey] = nil
@@ -365,25 +437,25 @@ end
 function hotkeyManager.assign(def, keyComboDesc)
   if helperConfig[def.codeKey] and helperConfig[def.codeKey] ~= "" then
     if helperConfig[def.funcKey] then
-      g_keyboard.unbindKeyDown(helperConfig[def.codeKey], helperConfig[def.funcKey])
+      unbindHelperKeyDown(helperConfig[def.codeKey], helperConfig[def.funcKey])
     else
-      g_keyboard.unbindKeyDown(helperConfig[def.codeKey])
+      unbindHelperKeyDown(helperConfig[def.codeKey])
     end
   end
   hotkeyManager.clearConflicting(keyComboDesc)
-  local toggleFunc = def.makeToggle()
+  local toggleFunc = makeBoundToggle(def)
   helperConfig[def.codeKey] = keyComboDesc
   helperConfig[def.funcKey] = toggleFunc
-  g_keyboard.bindKeyDown(keyComboDesc, toggleFunc)
+  bindHelperKeyDown(keyComboDesc, toggleFunc)
   saveSettings()
 end
 
 function hotkeyManager.clear(def)
   if helperConfig[def.codeKey] and helperConfig[def.codeKey] ~= "" then
     if helperConfig[def.funcKey] then
-      g_keyboard.unbindKeyDown(helperConfig[def.codeKey], helperConfig[def.funcKey])
+      unbindHelperKeyDown(helperConfig[def.codeKey], helperConfig[def.funcKey])
     else
-      g_keyboard.unbindKeyDown(helperConfig[def.codeKey])
+      unbindHelperKeyDown(helperConfig[def.codeKey])
     end
     helperConfig[def.codeKey] = ""
     helperConfig[def.funcKey] = nil
