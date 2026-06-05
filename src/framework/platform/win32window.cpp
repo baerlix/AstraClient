@@ -981,16 +981,23 @@ int WIN32Window::internalLoadMouseCursor(const ImagePtr& image, const Point& hot
         int pixelCount = width * height;
         std::vector<uint32> cursorPixels(pixelCount);
 
+        const int maskStride = ((width + 15) / 16) * 2;
+        std::vector<uint8> maskPixels(maskStride * height, 0);
+
         for (int i = 0; i < pixelCount; ++i) {
             uint8* pixel = reinterpret_cast<uint8*>(&cursorPixels[i]);
             pixel[2] = *(frameImage->getPixelData() + (i * 4) + 0);
             pixel[1] = *(frameImage->getPixelData() + (i * 4) + 1);
             pixel[0] = *(frameImage->getPixelData() + (i * 4) + 2);
             pixel[3] = *(frameImage->getPixelData() + (i * 4) + 3);
+
+            if (pixel[3] == 0) {
+                const int x = i % width;
+                const int y = i / width;
+                maskPixels[(y * maskStride) + (x / 8)] |= 0x80 >> (x % 8);
+            }
         }
 
-        const int maskStride = ((width + 31) / 32) * 4;
-        std::vector<uint8> maskPixels(maskStride * height, 0);
         HBITMAP colorBitmap = CreateBitmap(width, height, 1, 32, &cursorPixels[0]);
         HBITMAP maskBitmap = CreateBitmap(width, height, 1, 1, &maskPixels[0]);
         if (!colorBitmap || !maskBitmap) {
@@ -1035,6 +1042,14 @@ void WIN32Window::setMouseCursor(int cursorId)
     g_graphicsDispatcher.addEvent([&, cursorId] {
         if (cursorId >= (int)m_cursors.size() || cursorId < 0)
             return;
+
+        if (m_currentCursorId == cursorId) {
+            if (m_cursor) {
+                SetCursor(m_cursor);
+                ShowCursor(true);
+            }
+            return;
+        }
 
         m_currentCursorId = cursorId;
         m_cursorFrame = 0;
