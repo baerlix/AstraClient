@@ -2,6 +2,7 @@ BottomMultiAction < Panel
   id: multiActionPanel
   size: 67 116
   draggable: false
+  @onEscape: modules.game_actionbar.closeCurrentMultiActionPanel()
 
   ActionButton
     id: actionButton3
@@ -22,10 +23,27 @@ BottomMultiAction < Panel
     anchors.right: parent.right
     margin-top: 3
 
+  Label
+    anchors.top: parent.top
+    anchors.left: parent.left
+    text: "III"
+    margin-left: -6
+    margin-top: 5
+  Label
+    anchors.verticalCenter: parent.verticalCenter
+    anchors.left: parent.left
+    text: "II"
+    margin-left: -2
+  Label
+    anchors.bottom: parent.bottom
+    anchors.left: parent.left
+    text: "I"
+
 LeftMultiAction < Panel
   id: multiActionPanel
   size: 116 67
   draggable: false
+  @onEscape: modules.game_actionbar.closeCurrentMultiActionPanel()
 
   ActionButton
     id: actionButton3
@@ -49,10 +67,30 @@ LeftMultiAction < Panel
     margin-top: 15
     margin-right: 3
 
+  Label
+    anchors.top: parent.top
+    anchors.right: parent.right
+    text: "III"
+    margin-right: 2
+    margin-top: -2
+  Label
+    anchors.top: parent.top
+    anchors.horizontalCenter: parent.horizontalCenter
+    text: "II"
+    margin-left: -2
+    margin-top: -2
+  Label
+    anchors.top: parent.top
+    anchors.left: parent.left
+    text: "I"
+    margin-top: -2
+    margin-left: 8
+
 RightMultiAction < Panel
   id: multiActionPanel
   size: 116 67
   draggable: false
+  @onEscape: modules.game_actionbar.closeCurrentMultiActionPanel()
 
   ActionButton
     id: actionButton3
@@ -75,3 +113,22 @@ RightMultiAction < Panel
     anchors.left: actionButton2.right
     margin-top: 18
     margin-left: 3
+
+  Label
+    anchors.top: parent.top
+    anchors.right: parent.right
+    text: "I"
+    margin-right: 8
+    margin-top: -2
+  Label
+    anchors.top: parent.top
+    anchors.horizontalCenter: parent.horizontalCenter
+    text: "II"
+    margin-left: -2
+    margin-top: -2
+  Label
+    anchors.top: parent.top
+    anchors.left: parent.left
+    text: "III"
+    margin-top: -2
+    margin-left: 2
