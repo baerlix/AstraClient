@@ -2946,12 +2946,14 @@ end
 function getMultiActionPosition(button)
 	local actionbar = button:getParent():getParent()
 	local barN = actionbar and actionbar.n or 1
+	local pos = button:getPosition()
+	local x, y = pos.x, pos.y
 	if barN >= 1 and barN <= 3 then
-		return topoint(string.format("%s %s", button:getX() - 29, button:getY() - 116))
+		return topoint(string.format("%s %s", x - 29, y - 116))
 	elseif barN >= 4 and barN <= 6 then
-		return topoint(string.format("%s %s", button:getX() + 34, button:getY() - 29))
+		return topoint(string.format("%s %s", x + 34, y - 29))
 	else
-		return topoint(string.format("%s %s", button:getX() - 116, button:getY() - 29))
+		return topoint(string.format("%s %s", x - 116, y - 29))
 	end
 end
 
