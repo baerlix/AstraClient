@@ -58,8 +58,11 @@ protected:
     virtual void onAppear();
 
 private:
+    void updateOffset(float dt);
+
     Color m_color;
     Timer m_animationTimer;
+    Timer m_offsetTimer;
     CachedText m_cachedText;
     PointF m_offset;
     PointF m_targetOffset;

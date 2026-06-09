@@ -36,6 +36,10 @@
 #include <framework/util/extras.h>
 #include <set>
 
+namespace {
+constexpr int ANIMATED_TEXT_HORIZONTAL_PADDING = 4;
+}
+
 Map g_map;
 TilePtr Map::m_nulltile = nullptr;
 
@@ -156,7 +160,6 @@ void Map::addThing(const ThingPtr& thing, const Position& pos, int stackPos)
                 activeTexts.push_back(animatedText);
             }
 
-            const int padding = 4;
             int rightEdge = 0;
             bool firstText = true;
             for(auto it = activeTexts.rbegin(); it != activeTexts.rend(); ++it) {
@@ -172,7 +175,7 @@ void Map::addThing(const ThingPtr& thing, const Position& pos, int stackPos)
                     continue;
                 }
 
-                const int offset = rightEdge + leftHalf + padding;
+                const int offset = rightEdge + leftHalf + ANIMATED_TEXT_HORIZONTAL_PADDING;
                 text->setOffset(Point(offset, 0));
                 rightEdge = offset + rightHalf;
             }
