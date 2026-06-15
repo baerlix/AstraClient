@@ -13,8 +13,10 @@ SPELL_CHANNEL_NAME = "Spells"
 SPELL_CHANNEL_ID = 0xFFEF
 
 RENOWN_PODIUM = 35973
+LEGACY_RENOWN_PODIUM = 35974
 VIGOUR_PODIUM = 38707
 TENACITY_PODIUM = 42367
+ASTRA_MONSTER_PODIUM = 42368
 
 FloorHigher = 0
 FloorLower = 15
@@ -62,7 +64,7 @@ ResourceNpcTrade = 2
 ResourcePreyBonus = 10
 ResourceReward = 20
 ResourceJokerReward = 21
-ResourceBoss = 30
+ResourceBoss = 34
 
 ResourceCharmBalance = 30
 ResourceEchoeBalance = 31
@@ -71,8 +73,8 @@ ResourceMaxEchoeBalance = 33
 
 ResourceHuntingTask = 50
 ResourceNpcStorageTrade = 60
-ResourceForgeDust = 20
-ResourceForgeSlivers = 21
+ResourceForgeDust = 23
+ResourceForgeSlivers = 24
 ResourceForgeExaltedCore = 22
 ResourceWheelPoints = 80
 ResourceLesserGem = 81
@@ -479,6 +481,8 @@ ExtendedIds = {
   Particles = 5,
   MapShader = 6,
   NeedsUpdate = 7,
+  WheelSkills = 145,
+  MonkData = 146,
   Cavebot = 210,
   SmartFollow = 212,
   BotCheckAlert = 230,
@@ -543,6 +547,36 @@ ChannelEvent = {
   Leave = 1,
   Invite = 2,
   Exclude = 3,
+}
+
+ResourceTypes = {
+  BANK_BALANCE = ResourceBank,
+  GOLD_EQUIPPED = ResourceInventory,
+  CURRENCY_CUSTOM_EQUIPPED = ResourceNpcTrade,
+  PREY_WILDCARDS = ResourcePreyBonus,
+  DAILYREWARD_STREAK = ResourceReward,
+  DAILYREWARD_JOKERS = ResourceJokerReward,
+  CHARM = ResourceCharmBalance,
+  MINOR_CHARM = ResourceEchoeBalance,
+  MAX_CHARM = ResourceMaxCharmBalance,
+  MAX_MINOR_CHARM = ResourceMaxEchoeBalance,
+  TASK_HUNTING = ResourceHuntingTask,
+  FORGE_DUST = ResourceForgeDust,
+  FORGE_SLIVER = ResourceForgeSlivers,
+  FORGE_CORES = ResourceForgeExaltedCore,
+  LESSER_GEMS = ResourceLesserGem,
+  REGULAR_GEMS = ResourceRegularGem,
+  GREATER_GEMS = ResourceGreaterGem,
+  LESSER_FRAGMENTS = ResourceLesserFragment,
+  GREATER_FRAGMENTS = ResourceGreaterFragment,
+  WHEEL_OF_DESTINY = ResourceWheelPoints,
+  COIN_NORMAL = 90,
+  COIN_TRANSFERRABLE = 91,
+  COIN_AUCTION = 92,
+  COIN_TOURNAMENT = 93,
+  BOUNTY_TASK_POINTS = 86,
+  BOUNTY_REROLL_POINTS = 95,
+  SOULSEAL_POINTS = 87,
 }
 
 -- @}
@@ -659,7 +693,7 @@ ControlButtonNames = {
   ["questTrackerWidget"] = "Quest Tracker",
   ["unjustifiedPoinsWidget"] = "Unjustified Points",
   ["preyDialog"] = "Prey Dialog",
-  ["preyWidget"] = "Prey",
+  ["preyWidget"] = "Kill Tracker",
   ["rewardWallDialog"] = "Reward Wall",
   ["analyticsSelectorWidget"] = "Analytics Selector",
   ["compendiumDialog"] = "Compendium",
@@ -690,7 +724,7 @@ ControlButtonTooltips = {
   ["questTrackerWidget"] = "%s quest tracker window",
   ["unjustifiedPoinsWidget"] = "%s unjustified points window",
   ["preyDialog"] = "%s prey dialog",
-  ["preyWidget"] = "%s prey window",
+  ["preyWidget"] = "%s kill tracker window",
   ["rewardWallDialog"] = "%s reward wall",
   ["analyticsSelectorWidget"] = "%s analytics selector window",
   ["compendiumDialog"] = "%s compendium",

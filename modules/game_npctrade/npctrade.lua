@@ -6,6 +6,7 @@ CURRENCY_DECIMAL = false
 WEIGHT_UNIT = 'oz'
 LAST_INVENTORY = 10
 SORT_BY = 'name'
+MAX_TRADE_AMOUNT = 100
 
 npcWindow = nil
 itemsPanel = nil
@@ -53,6 +54,7 @@ quickSellButton = nil
 
 cancelNextRelease = nil
 sellAllWithDelayEvent = nil
+local npcWindowLayoutRefreshScheduled = false
 
 function saveData()
   if not LoadedPlayer:isLoaded() then return end
@@ -202,6 +204,51 @@ function terminate()
   })
 end
 
+local function refreshNpcWindowLayout()
+  if not npcWindow or not npcWindow:getParent() then
+    return
+  end
+
+  local parent = npcWindow:getParent()
+  if parent:getClassName() == 'UIMiniWindowContainer' and parent.fitAll then
+    parent:fitAll(npcWindow)
+  end
+
+  if itemsPanel then
+    local layout = itemsPanel:getLayout()
+    if layout then
+      layout:update()
+    end
+  end
+end
+
+local function scheduleNpcWindowLayoutRefresh()
+  if npcWindowLayoutRefreshScheduled then
+    return
+  end
+
+  npcWindowLayoutRefreshScheduled = true
+  addEvent(refreshNpcWindowLayout)
+  scheduleEvent(refreshNpcWindowLayout, 50)
+  scheduleEvent(function()
+    refreshNpcWindowLayout()
+    npcWindowLayoutRefreshScheduled = false
+  end, 150)
+end
+
+local function ensureNpcWindowExpanded()
+  if not npcWindow then
+    return
+  end
+
+  npcWindow.save = false
+  if npcWindow.minimized and npcWindow.maximize then
+    npcWindow:maximize()
+  elseif npcWindow:getHeight() < npcWindow:getMinimumHeight() then
+    npcWindow:setHeight(npcWindow:getMinimumHeight())
+  end
+end
+
 function show()
   if g_game.isOnline() then
     if #tradeItems[BUY] > 0 then
@@ -212,13 +259,25 @@ function show()
       quickSellButton:setEnabled(true)
     end
 
-    npcWindow:show()
-    if not m_interface.addToPanels(npcWindow) then
+    ensureNpcWindowExpanded()
+
+    local addedToPanel
+    if m_interface.addToPanelsWithPriority then
+      addedToPanel = m_interface.addToPanelsWithPriority(npcWindow, true)
+    else
+      addedToPanel = m_interface.addToPanels(npcWindow)
+    end
+
+    if not addedToPanel then
       return false
     end
 
-    if npcWindow and npcWindow:isVisible() then
-      npcWindow:getParent():moveChildToIndex(npcWindow, #npcWindow:getParent():getChildren())
+    npcWindow:show()
+    scheduleNpcWindowLayoutRefresh()
+
+    if npcWindow and npcWindow:isVisible() and npcWindow:getParent() then
+      local parent = npcWindow:getParent()
+      parent:moveChildToIndex(npcWindow, #parent:getChildren())
       npcWindow.close = function() closeNpcTrade() end
       npcWindow:focus()
       setupPanel:enable()
@@ -263,7 +322,7 @@ function hide()
 end
 
 function onItemBoxChecked(widget)
-  itemButton:setItem(nil)
+  itemButton:setItemId(0)
   quantityScroll:setValue(0)
   if widget:isChecked() then
     local item = widget.item
@@ -524,6 +583,9 @@ function refreshItem(item)
   if ItemsDatabase and ItemsDatabase.setRarityItem then
     ItemsDatabase.setRarityItem(itemButton, item.ptr)
   end
+  if ItemsDatabase and ItemsDatabase.setTier then
+    ItemsDatabase.setTier(itemButton, item.ptr)
+  end
   itemButton.onMouseRelease = itemPopup
 
   if getCurrentTradeType() == BUY then
@@ -597,7 +659,9 @@ function refreshTradeItems()
     if ItemsDatabase and ItemsDatabase.setRarityItem then
       ItemsDatabase.setRarityItem(itemWidget, item.ptr)
     end
-    ItemsDatabase.setTier(itemWidget, item.ptr)
+    if ItemsDatabase and ItemsDatabase.setTier then
+      ItemsDatabase.setTier(itemWidget, item.ptr)
+    end
     itemBox.onMouseRelease = itemPopup
 
     if (string.len(item.name) > 15) or (string.len(informationText) > 16) then
@@ -614,6 +678,10 @@ function refreshTradeItems()
 
   layout:enableUpdates()
   layout:update()
+
+  if npcWindow and npcWindow:isVisible() then
+    scheduleNpcWindowLayoutRefresh()
+  end
 end
 
 function refreshPlayerGoods()
@@ -680,9 +748,15 @@ function refreshPlayerGoods()
   if selectedItem then
     refreshItem(selectedItem)
   end
+
+  if npcWindow and npcWindow:isVisible() then
+    scheduleNpcWindowLayoutRefresh()
+  end
 end
 
 function onOpenNpcTrade(items, currencyId, currencyName)
+  currencyId = tonumber(currencyId) or GOLD_COINS
+  currencyName = currencyName or ''
   CURRENCYID = currencyId
   currencyItem:setItemId(currencyId)
   currencyItem:setVisible(true)
@@ -846,15 +920,7 @@ function formatCurrency(amount)
 end
 
 function getMaxAmount(item)
-  if getCurrentTradeType() == SELL and g_game.getFeature(GameDoubleShopSellAmount) then
-    return 10000
-  end
-
-  if item and getCurrentTradeType() == BUY and item.ptr:isStackable() then
-    return 10000
-  end
-
-  return 100
+  return MAX_TRADE_AMOUNT
 end
 
 function sellAll(delayed, exceptions)

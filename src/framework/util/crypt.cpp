@@ -27,7 +27,10 @@
 #include <framework/platform/platform.h>
 #include <framework/core/application.h>
 
-#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/random_generator.hpp>
+#include <boost/uuid/name_generator.hpp>
+#include <boost/uuid/nil_generator.hpp>
+#include <boost/uuid/uuid_hash.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/functional/hash.hpp>
 

@@ -22,6 +22,8 @@
 
 #include "uicreature.h"
 #include "spritemanager.h"
+#include "thingtypemanager.h"
+#include <framework/core/logger.h>
 #include <framework/otml/otml.h>
 #include <framework/graphics/drawqueue.h>
 
@@ -33,6 +35,13 @@ void UICreature::drawSelf(Fw::DrawPane drawPane)
     UIWidget::drawSelf(drawPane);
 
     if (m_creature) {
+        const auto outfit = m_creature->getOutfit();
+        if (outfit.getCategory() >= ThingLastCategory || (outfit.getId() == 0 && outfit.getAuxId() == 0)) {
+            g_logger.debug(stdext::format("Ignoring invalid UICreature outfit: category=%d, id=%d, auxId=%d, creatureId=%u, creatureName=%s",
+                                          static_cast<int>(outfit.getCategory()), outfit.getId(), outfit.getAuxId(), m_creature->getId(), m_creature->getName()));
+            return;
+        }
+
         if (m_autoRotating) {
             auto ticks = (g_clock.millis() % 4000) / 4;
             Otc::Direction new_dir;
@@ -61,6 +70,28 @@ void UICreature::setOutfit(const Outfit& outfit)
         m_creature = std::make_shared<Creature>();
     m_direction = Otc::South;
     m_creature->setOutfit(outfit);
+}
+
+bool UICreature::isColoredOutfit()
+{
+    if (!m_creature)
+        return false;
+
+    const Outfit& outfit = m_creature->getOutfit();
+    const uint16 outfitId = outfit.getId();
+    return outfit.getCategory() == ThingCategoryCreature &&
+           g_things.isValidDatId(outfitId, ThingCategoryCreature) &&
+           g_things.getThingType(outfitId, ThingCategoryCreature)->getLayers() > 1;
+}
+
+bool UICreature::isColoredMount()
+{
+    if (!m_creature)
+        return false;
+
+    const uint16 mountId = m_creature->getOutfit().getMount();
+    return g_things.isValidDatId(mountId, ThingCategoryCreature) &&
+           g_things.getThingType(mountId, ThingCategoryCreature)->getLayers() > 1;
 }
 
 void UICreature::onStyleApply(const std::string& styleName, const OTMLNodePtr& styleNode)

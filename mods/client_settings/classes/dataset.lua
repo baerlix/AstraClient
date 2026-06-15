@@ -1,3 +1,9 @@
+local function setHealthManaCircleVisible(value)
+    if modules.client_settings and modules.client_settings.setHealthCircleModules then
+        modules.client_settings.setHealthCircleModules(value)
+    end
+end
+
 return {
     layout = {
         value = DEFAULT_LAYOUT,
@@ -60,6 +66,7 @@ return {
 		apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawOwnHealth(value)
+            gameMapPanel:setDrawHealthBars(value)
             return true
         end,
 	},
@@ -74,6 +81,11 @@ return {
 
 	showOthersMarks = {
 		value = false,
+        apply = function(value)
+            local gameMapPanel = m_interface.getMapPanel()
+            gameMapPanel:setDrawMarks(value)
+            return true
+        end,
 	},
 
 	showNPC = {
@@ -81,6 +93,15 @@ return {
 		apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawNpcIcon(value)
+            return true
+        end,
+	},
+
+	prestigeEmblem = {
+		value = true,
+        apply = function(value)
+            local gameMapPanel = m_interface.getMapPanel()
+            gameMapPanel:setDrawEmblem(value)
             return true
         end,
 	},
@@ -288,7 +309,7 @@ return {
 	},
 
 	ambientLight = {
-		value = 100,
+		value = 40,
         apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setMinimumAmbientLight(value/100)
@@ -314,7 +335,10 @@ return {
 		value = false,
         apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
-            gameMapPanel:setDrawPlayerBars(value)
+            local showBars = not value
+                          and GameOptions:getOption("ownHUDCharacter")
+                          and GameOptions:getOption("showOwnBars")
+            gameMapPanel:setDrawPlayerBars(showBars)
             return true
         end,
 	},
@@ -336,7 +360,7 @@ return {
 	},
 
 	walkTeleportDelay = {
-		value = 200,
+		value = 0,
         apply = function(value)
             local controls = GameOptions:getLoadedWindow('controls')
             local label = controls and controls:recursiveGetChildById('walkTeleportDelayLabel')
@@ -377,7 +401,7 @@ return {
 	},
 
 	hotkeyDelay = {
-		value = 120,
+		value = 50,
         apply = function(value)
             local delayLabel =  GameOptions:getLoadedWindow('controls'):recursiveGetChildById('delayLabel')
             if delayLabel then
@@ -421,7 +445,7 @@ return {
 	},
 
 	walkTurnDelay = {
-		value = 100,
+		value = 0,
         apply = function(value)
             local controls = GameOptions:getLoadedWindow('controls')
             local label = controls and controls:recursiveGetChildById('walkTurnDelayLabel')
@@ -560,7 +584,7 @@ return {
 	},
 
 	hotkeyDelayNative = {
-		value = true,
+		value = false,
         apply = function(value)
             local controls = GameOptions:getLoadedWindow('controls')
             local delayLabel = controls:recursiveGetChildById('hotkeyDelay')
@@ -626,12 +650,18 @@ return {
             if wid then
               wid:setText(tr('Opacity: %d%%', value))
             end
+            if modules.game_healthcircle and modules.game_healthcircle.setCircleOpacity then
+                modules.game_healthcircle.setCircleOpacity(value / 100)
+            end
             return true
         end,
         tempApply = function(value)
             local wid = GameOptions:getLoadedWindow('hud'):recursiveGetChildById('opacityLabel')
             if wid then
               wid:setText(tr('Opacity: %d%%', value))
+            end
+            if modules.game_healthcircle and modules.game_healthcircle.setCircleOpacity then
+                modules.game_healthcircle.setCircleOpacity(value / 100)
             end
             return true
         end
@@ -775,8 +805,7 @@ return {
 	showHealthManaCircle = {
     value = false,
     apply = function(value)
-        local gameMapPanel = m_interface.getMapPanel()
-        gameMapPanel:setShowArcs(value)
+        setHealthManaCircleVisible(value)
         return true
     end,
     tempApply = function(value)
@@ -802,8 +831,7 @@ return {
                 end
             end
         end
-        local gameMapPanel = m_interface.getMapPanel()
-        gameMapPanel:setShowArcs(value)
+        setHealthManaCircleVisible(value)
         return true
     end
   },
@@ -811,7 +839,9 @@ return {
   sizeBox = {
 		value = 1,
         apply = function(value)
-            g_map.setArcStyle(value - 1)
+            if modules.game_healthcircle then
+                modules.game_healthcircle.setArcStyle(value - 1)
+            end
             if StatusIconBar and type(StatusIconBar.updatePosition) == 'function' then
                 StatusIconBar.updatePosition()
             end
@@ -846,9 +876,9 @@ return {
 	},
 
 	backgroundFrameRate = {
-		value = 60,
+		value = 100,
         apply = function(value)
-            if GameOptions:getOption('noFrameCheckBox') then
+            if GameOptions:getOption('vsync') or GameOptions:getOption('noFrameCheckBox') then
                 g_app.setMaxFps(0)
             else
                 local text, v = value, value
@@ -927,6 +957,7 @@ return {
         apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawOwnName(value)
+            gameMapPanel:setDrawNames(value)
             return true
         end,
 	},
@@ -945,10 +976,15 @@ return {
 	},
 
   engine = {
-		value = -1,
+		value = 2,
         apply = function(value)
-            if getOption("engine") ~= -1 and value ~= getOption("engine") then
-              displayInfoBox("Info", "You have selected a different graphics engine. Restart ATC for this change to take effect.")
+            return true
+        end,
+        tempApply = function(value)
+            local graphicsWindow = GameOptions:getLoadedWindow('graphics')
+            local optionsVisible = optionsWindow and optionsWindow:isVisible() and graphicsWindow and graphicsWindow:isVisible()
+            if optionsVisible and value ~= GameOptions:getOption('engine') then
+                displayInfoBox(tr('Graphics Engine'), tr('The graphics engine change will take effect after restarting the client.'))
             end
             return true
         end,
@@ -956,12 +992,11 @@ return {
 
 
 	antialiasing = {
-		value = 3,
+		value = 1,
         apply = function(value)
-            if value == 2 then
-                g_app.setSmooth(true)
-            else
-                g_app.setSmooth(false)
+            local gameMapPanel = m_interface and m_interface.getMapPanel()
+            if gameMapPanel then
+                gameMapPanel:setAntiAliasingMode(value)
             end
             return true
         end,
@@ -1056,6 +1091,14 @@ return {
         end,
 	},
 
+	cacheUI = {
+		value = false,
+        apply = function(value)
+            g_app.setCacheUI(value)
+            return true
+        end,
+	},
+
 	vsync = {
 		value = true,
         apply = function(value)
@@ -1067,9 +1110,10 @@ return {
             graphics:recursiveGetChildById("noFrameCheckBox"):setColor(color)
             g_window.setVerticalSync(value)
             if value then
-              g_app.setMaxFps(60)
+              -- VSync already paces rendering at the monitor refresh rate.
+              g_app.setMaxFps(0)
             else
-              local maxFps = graphics:recursiveGetChildById("backgroundFrameRate"):getValue() or 60
+              local maxFps = graphics:recursiveGetChildById("backgroundFrameRate"):getValue() or 100
               local noFrameLimit = graphics:recursiveGetChildById("noFrameCheckBox")
               if noFrameLimit and noFrameLimit:isChecked() then
                 maxFps = 0
@@ -1232,6 +1276,7 @@ return {
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawOwnManaBar(value)
             gameMapPanel:setDrawOwnManaShieldBar(value)
+            gameMapPanel:setDrawManaBar(value)
             return true
         end,
 	},
@@ -1241,6 +1286,15 @@ return {
         apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawHarmonyBar(value)
+            return true
+        end,
+	},
+
+  showMarks = {
+		value = true,
+        apply = function(value)
+            local gameMapPanel = m_interface.getMapPanel()
+            gameMapPanel:setDrawOwnMarks(value)
             return true
         end,
 	},
@@ -1263,7 +1317,26 @@ return {
 	},
 
 	walkCtrlTurnDelay = {
-		value = 150,
+		value = 0,
+        apply = function(value)
+            local controls = GameOptions:getLoadedWindow('controls')
+            local label = controls and controls:recursiveGetChildById('walkCtrlTurnDelayLabel')
+            if label then
+              label:setText(tr('Walk delay after ctrl turn: %d ms', value))
+            end
+            if modules.game_walking and modules.game_walking.setWalkDelayOption then
+              modules.game_walking.setWalkDelayOption('walkCtrlTurnDelay', value)
+            end
+            return true
+        end,
+        tempApply = function(value)
+            local controls = GameOptions:getLoadedWindow('controls')
+            local label = controls and controls:recursiveGetChildById('walkCtrlTurnDelayLabel')
+            if label then
+              label:setText(tr('Walk delay after ctrl turn: %d ms', value))
+            end
+            return true
+        end,
 	},
 
 	fullscreen = {
@@ -1295,10 +1368,33 @@ return {
         apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawOwnHUD(value)
+            local showBars = not GameOptions:getOption("hidePlayerBars")
+                          and value
+                          and GameOptions:getOption("showOwnBars")
+            gameMapPanel:setDrawPlayerBars(showBars)
             return true
         end,
         tempApply = function(value)
-            local huds = {"showOwnBars", "showOwnName", "showOwnHealth", "showOwnMana"}
+            local huds = {"showOwnBars", "showOwnName", "showOwnHealth", "showOwnMana", "showMarks"}
+            for _, hud in pairs(huds) do
+              local showHud = selectedWindow:recursiveGetChildById(hud)
+              if showHud then
+                showHud:setEnabled(value)
+              end
+            end
+            return true
+        end,
+	},
+
+	otherHUDCreatures = {
+		value = true,
+        apply = function(value)
+            local gameMapPanel = m_interface.getMapPanel()
+            gameMapPanel:setDrawOtherHUD(value)
+            return true
+        end,
+        tempApply = function(value)
+            local huds = {"displayNames", "displayHealth", "showOthersMarks", "showNPC", "prestigeEmblem"}
             for _, hud in pairs(huds) do
               local showHud = selectedWindow:recursiveGetChildById(hud)
               if showHud then
@@ -1338,6 +1434,9 @@ return {
             if wid then
               wid:setText(tr('Distance: %d%%', value))
             end
+            if modules.game_healthcircle and modules.game_healthcircle.setDistanceFromCenter then
+                modules.game_healthcircle.setDistanceFromCenter(value)
+            end
             if StatusIconBar and type(StatusIconBar.updatePosition) == 'function' then
                 StatusIconBar.updatePosition()
             end
@@ -1347,6 +1446,9 @@ return {
             local wid = GameOptions:getLoadedWindow('hud'):recursiveGetChildById('distanceLabel')
             if wid then
               wid:setText(tr('Distance: %d%%', value))
+            end
+            if modules.game_healthcircle and modules.game_healthcircle.setDistanceFromCenter then
+                modules.game_healthcircle.setDistanceFromCenter(value)
             end
             if StatusIconBar and type(StatusIconBar.updatePosition) == 'function' then
                 StatusIconBar.updatePosition()
@@ -1476,6 +1578,10 @@ return {
         apply = function(value)
             local gameMapPanel = m_interface.getMapPanel()
             gameMapPanel:setDrawOwnBars(value)
+            local showBars = not GameOptions:getOption("hidePlayerBars")
+                          and GameOptions:getOption("ownHUDCharacter")
+                          and value
+            gameMapPanel:setDrawPlayerBars(showBars)
             return true
         end,
 	},
@@ -1523,18 +1629,19 @@ return {
               local vsync = graphics:recursiveGetChildById("vsync")
               if vsync and vsync:isChecked() then
                   g_window.setVerticalSync(true)
-                  g_app.setMaxFps(60)
+                  g_app.setMaxFps(0)
               else
                 local currentFps = TempOptions:getOption('backgroundFrameRate') ~= nil and TempOptions:getOption('backgroundFrameRate') or nil
                 if not currentFps then
                   currentFps = GameOptions:getOption('backgroundFrameRate') ~= nil and GameOptions:getOption('backgroundFrameRate') or nil
                 end
-                g_app.setMaxFps(currentFps and currentFps or 60)
+                g_app.setMaxFps(currentFps and currentFps or 100)
               end
             end
 
             local wid = graphics:recursiveGetChildById('backgroundFrameRate')
-            if wid and not value then
+            local vsync = graphics:recursiveGetChildById("vsync")
+            if wid and not value and not (vsync and vsync:isChecked()) then
               wid:setEnabled(true)
             elseif wid then
               wid:setEnabled(false)
@@ -1552,7 +1659,8 @@ return {
             end
 
             local wid = graphics:recursiveGetChildById('backgroundFrameRate')
-            if wid and not value then
+            local vsync = graphics:recursiveGetChildById("vsync")
+            if wid and not value and not (vsync and vsync:isChecked()) then
               wid:setEnabled(true)
             elseif wid then
               wid:setEnabled(false)
@@ -1653,7 +1761,7 @@ return {
 	},
 
 	walkStairsDelay = {
-		value = 50,
+		value = 0,
         apply = function(value)
             local controls = GameOptions:getLoadedWindow('controls')
             local label = controls and controls:recursiveGetChildById('walkStairsDelayLabel')
@@ -1676,7 +1784,26 @@ return {
 	},
 
 	walkFirstStepDelay = {
-		value = 200,
+		value = 50,
+        apply = function(value)
+            local controls = GameOptions:getLoadedWindow('controls')
+            local label = controls and controls:recursiveGetChildById('walkFirstStepDelayLabel')
+            if label then
+              label:setText(tr('Walk delay after first step: %d ms', value))
+            end
+            if modules.game_walking and modules.game_walking.setWalkDelayOption then
+              modules.game_walking.setWalkDelayOption('walkFirstStepDelay', value)
+            end
+            return true
+        end,
+        tempApply = function(value)
+            local controls = GameOptions:getLoadedWindow('controls')
+            local label = controls and controls:recursiveGetChildById('walkFirstStepDelayLabel')
+            if label then
+              label:setText(tr('Walk delay after first step: %d ms', value))
+            end
+            return true
+        end,
 	},
 
 	wsadWalking = {
@@ -1712,7 +1839,13 @@ return {
 	customisableBars = {
 		value = true,
         apply = function(value)
-            modules.game_topbar.toggle(value)
+            if modules.game_topbar then
+                if modules.game_topbar.reloadFromSettings then
+                    modules.game_topbar.reloadFromSettings(value)
+                elseif modules.game_topbar.toggle then
+                    modules.game_topbar.toggle(value)
+                end
+            end
             return true
         end,
 	},
@@ -1735,7 +1868,7 @@ return {
 	},
 
 	enableLights = {
-		value = false,
+		value = true,
         apply = function(value)
             local effects = GameOptions:getLoadedWindow('effects')
             local wid = effects:recursiveGetChildById('ambientLabel')

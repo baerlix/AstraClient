@@ -6,13 +6,15 @@ if not HomeOffer then
 	HomeOffer.dailyOffers = {}
 	HomeOffer.homePanel = {}
 	HomeOffer.event = nil
+	HomeOffer.timerEvent = nil
 	HomeOffer.lastid = 0
 	HomeOffer.dailyReroll = 0
 	HomeOffer.dailyRerollWindow = nil
 end
 
 local function timerEvent(widget, endTime)
-	if not widget or not widget:isVisible() or os.time() > endTime then
+	if not widget or widget:isDestroyed() or not widget:isVisible() or os.time() > endTime then
+		HomeOffer.timerEvent = nil
 		return
 	end
 
@@ -26,17 +28,21 @@ local function timerEvent(widget, endTime)
 		widget:setColor("$var-text-cip-store-red")
 	end
 
-	scheduleEvent(function()
+	HomeOffer.timerEvent = scheduleEvent(function()
 		timerEvent(widget, endTime)
 	end, 1000)
 end
 
 function HomeOffer:configure(categoryName, offers, scrolling, homePanel, reasons, dailyOfferPrice, dailyOffers)
+	local startedAt = g_clock.millis()
 	if Offers.displayPanel then
 		Offers.displayPanel:destroy()
 	end
 
 	Offers:stopAllEvents()
+	Offers.configureKey = nil
+	Offers.renderKey = nil
+	Offers.selectedWidget = nil
 
 	Offers.displayPanel = g_ui.createWidget('HomePanel', StoreWindow.contentPanel)
 	Offers.displayPanel:setId(categoryName)
@@ -62,29 +68,26 @@ function HomeOffer:configure(categoryName, offers, scrolling, homePanel, reasons
 	if #HomeOffer.homePanel > 1 then
 		Offers.displayPanel.prevBanner:setVisible(true)
 		Offers.displayPanel.nextBanner:setVisible(true)
+		HomeOffer:startBannerCycle()
 	end
 
-	HomeOffer.event = cycleEvent(function()
-		HomeOffer:configurePanels()
-	end, HomeOffer.scrolling)
-
 	if table.empty(HomeOffer.dailyOffers) then
+		Offers.dailyPanel:setVisible(false)
+		Offers.displayPanel.mainOffers:setHeight(328)
+		highlightWidget:setVisible(false)
+		Store:profileStep("HomeOffer:configure", startedAt)
 		return
 	end
 
 	local endTime = dailyOffers[1].expireTime
+	removeEvent(HomeOffer.timerEvent)
 	timerEvent(Offers.dailyPanel.timerLabel, endTime)
 
 	HomeOffer:createDailyOffers()
-	StoreWindow.contentPanel.onVisibilityChange = function(widget, visible)
-		if widget:isVisible() and not table.empty(dailyOffers) then
-			local endTime = dailyOffers[1].expireTime
-			timerEvent(Offers.dailyPanel.timerLabel, endTime)
-		end
-	end
 
 	local rerollButton = StoreWindow.contentPanel:recursiveGetChildById('discountRerollButton')
 	if not rerollButton then
+		Store:profileStep("HomeOffer:configure", startedAt)
 		return
 	end
 
@@ -92,6 +95,7 @@ function HomeOffer:configure(categoryName, offers, scrolling, homePanel, reasons
 
 	rerollButton:setEnabled(Store.transferableCoins >= dailyOfferPrice)
 	rerollButton:setTooltip(string.format("Reroll offers for %d Astra Coins", dailyOfferPrice))
+	Store:profileStep("HomeOffer:configure", startedAt)
 end
 
 local function getOfferUI(offer)
@@ -124,7 +128,7 @@ function HomeOffer:onRerollDailyOffer(button)
 		HomeOffer.dailyRerollWindow:destroy()
 		HomeOffer.dailyRerollWindow = nil
 		StoreWindow:show()
-		g_client.setInputLockWidget(StoreWindow)
+		g_client.setInputLockWidget(nil)
 	end
 
 	local message = string.format("Are you sure you want to reroll the daily offer for %d Astra Coins?", HomeOffer.dailyReroll)
@@ -138,6 +142,7 @@ function HomeOffer:onRerollDailyOffer(button)
 end
 
 function HomeOffer:createOffers()
+	local startedAt = g_clock.millis()
 	Offers.displayPanel.mainOffers.offersPanel:destroyChildren()
 	for _, offer in ipairs(HomeOffer.offers) do
 		local widget = g_ui.createWidget(getOfferUI(offer), Offers.displayPanel.mainOffers.offersPanel)
@@ -177,11 +182,13 @@ function HomeOffer:createOffers()
 			if hovered then
 				widget:setBorderWidth(2)
 				widget:setBorderColor('white')
+				Store:safePulse(widget)
 			else
 				widget:setBorderWidth(0)
 			end
 		end
 		widget.onClick = function()
+			Store:safePulse(widget)
 			g_game.requestStoreOffers(SERVICE_OFFER_ID, "", offer.id)
 		end
 
@@ -284,6 +291,7 @@ function HomeOffer:createOffers()
 			count = count + 1
 		end
 	end
+	Store:profileStep("HomeOffer:createOffers", startedAt)
 end
 
 function HomeOffer:createDailyOffers()
@@ -330,6 +338,7 @@ function HomeOffer:createDailyOffers()
 			if hovered then
 				widget:setBorderWidth(2)
 				widget:setBorderColor('white')
+				Store:safePulse(widget)
 			else
 				widget:setBorderWidth(0)
 			end
@@ -339,6 +348,7 @@ function HomeOffer:createDailyOffers()
 			if widget.grayHover:isVisible() then
 				return
 			end
+			Store:safePulse(widget)
 			HomeOffer:processDailyOfferPurchase(offer.id)
 		end
 
@@ -438,7 +448,79 @@ function HomeOffer:createDailyOffers()
 	end
 end
 
+local function displayHomeBanner(homeInfo)
+	if not homeInfo or not homeInfo[1] or homeInfo[1] == "" then
+		return
+	end
+
+	local displayPanel = Offers.displayPanel
+	local bannerWidget = displayPanel and displayPanel.banners
+	if not bannerWidget then
+		return
+	end
+
+	local function applyBanner(path)
+		if bannerWidget:isDestroyed() then
+			return
+		end
+
+		bannerWidget:setImageSource(path)
+		Store:safeFadeIn(bannerWidget, 140)
+		bannerWidget.onClick = function()
+			if homeInfo[2] == 2 then
+				g_game.requestStoreOffers(2, homeInfo[3], 0)
+			end
+		end
+	end
+
+	local function clearBannerImageRequest()
+		if bannerWidget.currentImageRequest ~= nil then
+			Store.imageRequests[bannerWidget.currentImageRequest] = nil
+			bannerWidget.currentImageRequest = nil
+		end
+	end
+
+	if homeInfo[1]:sub(1, 1) == "/" then
+		clearBannerImageRequest()
+		applyBanner(homeInfo[1])
+		return
+	end
+
+	clearBannerImageRequest()
+	local requestId = Store.currentRequest
+	Store.currentRequest = Store.currentRequest + 1
+	bannerWidget.currentImageRequest = requestId
+	Store.imageRequests[requestId] = bannerWidget
+	Store:downloadImage(requestId, homeInfo[1], false, function(widget, path)
+		if widget.currentImageRequest == requestId then
+			applyBanner(path)
+		end
+	end)
+end
+
+function HomeOffer:startBannerCycle()
+	removeEvent(HomeOffer.event)
+	HomeOffer.event = nil
+	if not StoreWindow or not StoreWindow:isVisible() or not Offers.displayPanel or
+		Offers.displayPanel:getId() ~= "Home" or #HomeOffer.homePanel <= 1 then
+		return
+	end
+
+	HomeOffer.event = cycleEvent(function()
+		if not StoreWindow:isVisible() or not Offers.displayPanel or Offers.displayPanel:getId() ~= "Home" then
+			removeEvent(HomeOffer.event)
+			HomeOffer.event = nil
+			return
+		end
+		HomeOffer:configurePanels()
+	end, math.max(1000, HomeOffer.scrolling))
+end
+
 function HomeOffer:configurePanels()
+	if #HomeOffer.homePanel == 0 then
+		return
+	end
+
 	if #HomeOffer.homePanel <= HomeOffer.lastid then
 		HomeOffer.lastid = 1
 	else
@@ -446,61 +528,37 @@ function HomeOffer:configurePanels()
 	end
 
 	local homeInfo = HomeOffer.homePanel[HomeOffer.lastid]
-	HTTP.downloadImage(Store.url .. homeInfo[1], function(path, err)
-		if err or not Offers.displayPanel.banners then
-			return
-		end
-
-		Offers.displayPanel.banners:setImageSource(path)
-		Offers.displayPanel.banners.onClick = function()
-		if homeInfo[2] == 2 then
-			g_game.requestStoreOffers(2, homeInfo[3], 0)
-		end
-
-		end
-	end)
+	displayHomeBanner(homeInfo)
 end
 
 function HomeOffer:showNextHomeBanner()
+  if #HomeOffer.homePanel == 0 then
+    return
+  end
+
   HomeOffer.lastid = HomeOffer.lastid + 1
   if HomeOffer.lastid > #HomeOffer.homePanel then
     HomeOffer.lastid = 1
   end
 
   local homeInfo = HomeOffer.homePanel[HomeOffer.lastid]
-	HTTP.downloadImage(Store.url .. homeInfo[1], function(path, err)
-		if err or not Offers.displayPanel.banners then
-			return
-		end
-
-		Offers.displayPanel.banners:setImageSource(path)
-		Offers.displayPanel.banners.onClick = function()
-      if homeInfo[2] == 2 then
-        g_game.requestStoreOffers(2, homeInfo[3], 0)
-      end
-		end
-	end)
+  displayHomeBanner(homeInfo)
+  HomeOffer:startBannerCycle()
 end
 
 function HomeOffer:showPrevHomeBanner()
+  if #HomeOffer.homePanel == 0 then
+    return
+  end
+
   HomeOffer.lastid = HomeOffer.lastid - 1
   if HomeOffer.lastid < 1 then
     HomeOffer.lastid = #HomeOffer.homePanel
   end
 
   local homeInfo = HomeOffer.homePanel[HomeOffer.lastid]
-	HTTP.downloadImage(Store.url .. homeInfo[1], function(path, err)
-		if err or not Offers.displayPanel.banners then
-			return
-		end
-
-		Offers.displayPanel.banners:setImageSource(path)
-		Offers.displayPanel.banners.onClick = function()
-      if homeInfo[2] == 2 then
-        g_game.requestStoreOffers(2, homeInfo[3], 0)
-      end
-		end
-	end)
+  displayHomeBanner(homeInfo)
+  HomeOffer:startBannerCycle()
 end
 
 function HomeOffer:getDailyOfferById(offerId)

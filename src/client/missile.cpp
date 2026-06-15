@@ -26,6 +26,7 @@
 #include "tile.h"
 #include "spritemanager.h"
 #include "client.h"
+#include "game.h"
 #include <framework/core/clock.h>
 #include <framework/core/eventdispatcher.h>
 

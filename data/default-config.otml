@@ -18,8 +18,8 @@ actionBarShowRight1: false
 actionBarShowRight2: false
 actionBarShowRight3: false
 allActionBar79: false
-enableLights: false
-ambientLight: 100
+enableLights: true
+ambientLight: 40
 stackEffects: true
 maxEffects: false
 limitEffects: 400
@@ -27,6 +27,7 @@ opacityEffects: 100
 opacityMissile: 100
 showInfoMessagesInConsole: true
 showPing: true
+engine: 2
 antialiasing: 3
 autoSwitchHotkey: false
 linkCopyWarning: true
@@ -48,7 +49,7 @@ containerSortRecursive: false
 showPrivateMessagesInConsole: true
 rightPanels: 1
 showFps: true
-hotkeyDelay: 120
+hotkeyDelay: 50
 containerSortBackpacksFirst: false
 lootControl: 1
 sizeBox: 1
@@ -86,15 +87,15 @@ markTargetVisually: 1
 showAssignedHKButton: true
 showHKObjectsBars: true
 turnDelay: 30
-walkStairsDelay: 50
-walkFirstStepDelay: 200
+walkStairsDelay: 0
+walkFirstStepDelay: 50
 wsadWalking: false
 showCooldown: true
 fullscreen: false
 dontStretchShrink: false
 vsync: true
 noFrameCheckBox: false
-backgroundFrameRate: 200
+backgroundFrameRate: 100
 actionBarShowBottom1: true
 showOthersMarks: false
 showNPC: true
@@ -109,8 +110,8 @@ actionBarShowLeft1: false
 customisableBars: true
 displayText: true
 enableAudio: true
-hotkeyDelayNative: true
-walkTurnDelay: 100
+hotkeyDelayNative: false
+walkTurnDelay: 0
 cacheMap: false
 chatModeOn: true
 nativeMouseCursor: false
@@ -121,7 +122,7 @@ classicView: true
 showOwnHealth: true
 layout: default
 hidePlayerBars: false
-walkTeleportDelay: 200
+walkTeleportDelay: 0
 autoChaseOverride: true
 talkOnRightClick: false
 displayHealthOnTop: false
@@ -132,8 +133,8 @@ highlightThingsUnderCursor: true
 enableMusicSound: false
 showMessages: true
 showOwnMana: true
-smartWalk: false
-walkCtrlTurnDelay: 150
+smartWalk: true
+walkCtrlTurnDelay: 0
 dash: false
 ownHUDCharacter: true
 showLeftHorizontalPanel: false

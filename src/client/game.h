@@ -137,12 +137,14 @@ protected:
     // outfit
     void processOpenOutfitWindow(const Outfit& currentOutfit, const std::vector<std::tuple<int, std::string, int>>& outfitList,
                                  const std::vector<std::tuple<int, std::string>>& mountList,
+                                 const std::vector<std::tuple<int, std::string>>& familiarList,
                                  const std::vector<std::tuple<int, std::string>>& wingList,
                                  const std::vector<std::tuple<int, std::string>>& auraList,
                                  const std::vector<std::tuple<int, std::string>>& shaderList,
                                  const std::vector<std::tuple<int, std::string>>& healthBarList,
                                  const std::vector<std::tuple<int, std::string>>& manaBarList);
-
+    void processOpenHirelingWindow(const Outfit& currentOutfit, const std::vector<std::tuple<int, std::string, int, int>>& outfitList,
+                                   int sex, uint32 creatureId, const std::vector<std::tuple<int, int>>& tryOnList);
     // npc trade
     void processOpenNpcTrade(const std::vector<std::tuple<ItemPtr, std::string, int, int64_t, int64_t> >& items);
     void processPlayerGoods(uint64_t money, const std::vector<std::tuple<ItemPtr, int> >& goods);
@@ -233,7 +235,14 @@ public:
 
     // outfit related
     void requestOutfit();
+    void requestHirelingOutfit(uint32 creatureId);
+    void requestBlessings();
     void changeOutfit(const Outfit& outfit);
+    void changeHirelingOutfit(const Outfit& outfit, uint32 creatureId);
+    void sendInspectionNormalObject(const Position& position);
+    void sendInspectionObject(int inspectionType, int itemId, int itemCount);
+    void sendMonsterPodiumOutfit(int raceId, const Position& position, int itemId, int stackPos, int direction,
+                                 bool podiumVisible, bool creatureVisible);
 
     // vip related
     void addVip(const std::string& name);
@@ -323,6 +332,7 @@ public:
     void openWheel(uint32_t playerId);
     void sendStartOfflineTraining(uint8_t skillType);
     void soulsealFightAction(uint16_t raceId);
+    void soulsealRequest();
     void sendTutorialChangeVocation(uint8_t vocationClientId);
     void sendApplyWheelPoints(const std::vector<uint16_t>& slotPoints, uint16_t greenGem, uint16_t redGem, uint16_t aquaGem, uint16_t purpleGem);
     void gemAction(uint8_t actionType, uint8_t param, uint8_t pos);

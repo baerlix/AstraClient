@@ -8,6 +8,7 @@ local gameRootPanel = nil
 local player = nil
 local lastHighlightWidget = nil
 local isLoaded = false
+local loadActionBarEvent = nil
 
 -- new
 local hotkeyItemList = {}
@@ -24,6 +25,31 @@ local MULTI_ACTION_DELAY_MS = 500
 local cachedItemWidget = {}
 local dragButton = nil
 local dragItem = nil
+
+function updateGameMapPanelMargin()
+	local gameMapPanel = nil
+	if m_interface then
+		gameMapPanel = m_interface.getMapPanel and m_interface.getMapPanel() or m_interface.gameMapPanel
+	end
+
+	if gameMapPanel and gameMapPanel:getMarginBottom() ~= 0 then
+		gameMapPanel:setMarginBottom(0)
+	end
+
+	if modules.game_textmessage and modules.game_textmessage.updateActionBarMessageMargin then
+		modules.game_textmessage.updateActionBarMessageMargin(7)
+	end
+end
+
+local function refreshActionButtonRarity(button)
+	if not button or not button.item or not ItemsDatabase or not ItemsDatabase.setRarityItem then
+		return
+	end
+
+	local item = button.item:getItem()
+	local hasRarityFrame = item and ItemsDatabase.getRarityFrame and ItemsDatabase.getRarityFrame(item)
+	ItemsDatabase.setRarityItem(button.item, hasRarityFrame and item or nil)
+end
 
 function getGrabberWidget()
 	return mouseGrabberWidget
@@ -175,6 +201,42 @@ function init()
 	mouseGrabberWidget.onMouseRelease = onDropActionButton
 end
 
+local function removeButtonEvents(button)
+	if not button or not button.cache then
+		return
+	end
+
+	if button.cache.hotkey then
+		g_keyboard.unbindKeyPress(button.cache.hotkey, nil, gameRootPanel)
+		g_keyboard.unbindKeyDown(button.cache.hotkey, nil, gameRootPanel)
+		g_keyboard.unbindKeyUp(button.cache.hotkey, nil, gameRootPanel)
+	end
+
+	if button.cache.cooldownEvent then
+		removeEvent(button.cache.cooldownEvent)
+		button.cache.cooldownEvent = nil
+	end
+
+	if button.cache.removeCooldownEvent then
+		removeEvent(button.cache.removeCooldownEvent)
+		button.cache.removeCooldownEvent = nil
+	end
+end
+
+local function clearMultiActionCooldownEvents()
+	if not multiActionCooldownEvents then
+		return
+	end
+
+	for _, events in pairs(multiActionCooldownEvents) do
+		for _, event in pairs(events) do
+			removeEvent(event)
+		end
+	end
+
+	multiActionCooldownEvents = {}
+end
+
 function terminate()
 	disconnect(LocalPlayer, {
 		onManaChange 		= onUpdateActionBarStatus,
@@ -198,7 +260,55 @@ function terminate()
 		onEquipmentPresetCooldown = onEquipmentPresetCooldown
 	})
 
+	removeEvent(loadActionBarEvent)
+	loadActionBarEvent = nil
+
+	if closeCurrentMultiActionPanel then
+		closeCurrentMultiActionPanel()
+	end
+	clearMultiActionCooldownEvents()
+
+	for _, actionbar in pairs(actionBars) do
+		if actionbar then
+			unbindActionBarEvent(actionbar)
+			if not actionbar:isDestroyed() then
+				actionbar:destroy()
+			end
+		end
+	end
+
 	actionBars = {}
+	activeActionBars = {}
+	cachedItemWidget = {}
+	hotkeyItemList = {}
+	spellCooldownCache = {}
+	spellGroupCooldownCache = {}
+	spellGroupPressed = {}
+	cacheMultiActionButtons = {}
+	dragButton = nil
+	dragItem = nil
+	player = nil
+	isLoaded = false
+
+	if window then
+		window:destroy()
+		window = nil
+	end
+
+	if activeWindow then
+		activeWindow:destroy()
+		activeWindow = nil
+	end
+
+	if mouseGrabberWidget then
+		if g_ui.isMouseGrabbed and g_ui.isMouseGrabbed() then
+			mouseGrabberWidget:ungrabMouse()
+		end
+		mouseGrabberWidget:destroy()
+		mouseGrabberWidget = nil
+	end
+
+	gameRootPanel = nil
 end
 
 function online()
@@ -217,13 +327,28 @@ function online()
 	end
 
 	-- schedule update items
-	scheduleEvent(function() updateActionBar() onUpdateActionBarStatus() updateActionPassive() updateVisibleWidgets() isLoaded = true end, 300)
+	removeEvent(loadActionBarEvent)
+	loadActionBarEvent = scheduleEvent(function()
+		loadActionBarEvent = nil
+		updateActionBar()
+		onUpdateActionBarStatus()
+		updateActionPassive()
+		updateVisibleWidgets()
+		isLoaded = true
+	end, 300)
 	consoleln("ActionBars loaded in " .. (g_clock.millis() - benchmark) / 1000 .. " seconds.")
 end
 
 function offline()
 	for _, actionbar in pairs(activeActionBars) do
 		unbindActionBarEvent(actionbar)
+	end
+
+	removeEvent(loadActionBarEvent)
+	loadActionBarEvent = nil
+	clearMultiActionCooldownEvents()
+	if closeCurrentMultiActionPanel then
+		closeCurrentMultiActionPanel()
 	end
 
 	hotkeyItemList = {}
@@ -250,9 +375,6 @@ function onCreateActionBars()
 	if #actionBars == 0 then
 		createActionBars()
 	end
-	local margins = {41, 80, 119}
-	local totalMargin = 2
-
 	for i = 1, #actionBars do
 		local actionbar = actionBars[i]
 		local enabled = Options.actionBar[i].isVisible
@@ -264,22 +386,12 @@ function onCreateActionBars()
 		end
 
 		table.insert(activeActionBars, actionbar)
-		local previousEnabled = true
-		for j = 1, i - 1 do
-			if not g_settings.getBoolean("actionbar" .. j, false) then
-				previousEnabled = false
-				break
-			end
-		end
-		if previousEnabled then
-			totalMargin = margins[i]
-		end
 
 		:: continue ::
 	end
 
 	resizeLockButtons()
-	gameMapPanel:setMarginBottom(totalMargin)
+	updateGameMapPanelMargin()
 end
 
 function createActionBars()
@@ -430,6 +542,9 @@ function resetButtonCache(button)
 	end
 
 	if button.cache then
+		if button.cache.cooldownEvent then
+			removeEvent(button.cache.cooldownEvent)
+		end
 		if button.cache.removeCooldownEvent then
 			removeEvent(button.cache.removeCooldownEvent)
 		end
@@ -2131,6 +2246,9 @@ function clearButton(button, removeAction)
 	if button.item and ItemsDatabase and ItemsDatabase.setTier then
 		ItemsDatabase.setTier(button.item, nil)
 	end
+	if button.item and ItemsDatabase and ItemsDatabase.setRarityItem then
+		ItemsDatabase.setRarityItem(button.item, nil)
+	end
 
 	if hotkey then
 		button.cache.hotkey = hotkey
@@ -2346,8 +2464,17 @@ local function getPrevInvisibleButton(actionBar)
 	return nil
 end
 
+local function getReverseChildren(widget)
+	local children = widget:getChildren()
+	local reversed = {}
+	for i = #children, 1, -1 do
+		table.insert(reversed, children[i])
+	end
+	return reversed
+end
+
 local function getLastVisibleButton(actionBar)
-	for _, button in ipairs(actionBar.tabBar:getReverseChildren()) do
+	for _, button in ipairs(getReverseChildren(actionBar.tabBar)) do
 		if button:isVisible() then
 			return button
 		end
@@ -2362,7 +2489,7 @@ function moveActionButtons(widget)
 	local tabBar = actionBar.tabBar
 	local buttons = { actionBar.prevPanel.prev, actionBar.prevPanel.first, actionBar.nextPanel.next, actionBar.nextPanel.last }
 	local children = tabBar:getChildren()
-	local reverseChildren = tabBar.getReverseChildren and tabBar:getReverseChildren() or {}
+	local reverseChildren = getReverseChildren(tabBar)
 
 	local dimension = actionBar.isVertical and tabBar:getHeight() or tabBar:getWidth()
 	local visibleCount = math.max(1, math.floor(dimension / 36))
@@ -2452,15 +2579,7 @@ end
 
 function unbindActionBarEvent(actionbar)
 	for _, button in pairs(actionbar.tabBar:getChildren()) do
-		if button.cache and button.cache.hotkey then
-			g_keyboard.unbindKeyPress(button.cache.hotkey, nil, gameRootPanel)
-			g_keyboard.unbindKeyDown(button.cache.hotkey, nil, gameRootPanel)
-		end
-
-		if button.cache.cooldownEvent then
-			removeEvent(button.cache.cooldownEvent)
-		end
-
+		removeButtonEvents(button)
 		resetButtonCache(button)
 	end
 end
@@ -2501,6 +2620,7 @@ function configureActionBar(barStr, visible)
 				end
 			end
 		end
+		updateGameMapPanelMargin()
 		scheduleEvent(function() modules.game_actionbar.updateVisibleWidgets() end, 10)
 		return
 	end
@@ -2801,6 +2921,8 @@ function updateButtonState(button)
 			end
 		end
 	end
+
+	refreshActionButtonRarity(button)
 end
 -- ============================================================
 -- MULTI-ACTION SYSTEM (ported from mehah PR #1604)
@@ -2926,6 +3048,30 @@ local function renderSlotOnWidget(widget, slotData, isMainButton)
 			widget.cache.spellData = runeSpellData
 		end
 	elseif slotData["chatText"] then
+		local previousItemId = widget.cache.itemId
+		if previousItemId and previousItemId > 0 then
+			local cachedItems = cachedItemWidget[previousItemId]
+			if cachedItems then
+				for index = #cachedItems, 1, -1 do
+					if cachedItems[index] == widget then
+						table.remove(cachedItems, index)
+					end
+				end
+				if #cachedItems == 0 then
+					cachedItemWidget[previousItemId] = nil
+				end
+			end
+		end
+
+		widget.cache.itemId = 0
+		widget.cache.item = nil
+		widget.cache.upgradeTier = 0
+		widget.cache.smartMode = nil
+		widget.cache.castParam = nil
+		widget.item:setItem(nil)
+		widget.item:setItemCount(0)
+		widget.item:setChecked(false)
+
 		local spellData, param = Spells.getSpellDataByParamWords(slotData["chatText"]:lower())
 		if spellData then
 			local spellId = SpellIcons[spellData.icon] and SpellIcons[spellData.icon][1] or spellData.clientId
@@ -2953,6 +3099,7 @@ local function renderSlotOnWidget(widget, slotData, isMainButton)
 		widget.cache.actionType = UseTypes["chatText"]
 	end
 	setupButtonTooltip(widget, false)
+	refreshActionButtonRarity(widget)
 end
 
 function updateMultiButtonState(button)

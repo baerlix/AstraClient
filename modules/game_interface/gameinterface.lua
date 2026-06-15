@@ -28,6 +28,7 @@ arcLifeDistance = 0
 focusReason = {}
 hookedMenuOptions = {}
 lastDirTime = g_clock.millis()
+local healthCircleResizeEvent = nil
 
 local keybindStopAll = KeyBind:getKeyBind("Movement", "Stop All Actions")
 local keybindLogout = KeyBind:getKeyBind("Misc.", "Logout")
@@ -169,21 +170,68 @@ function terminate()
   hookedMenuOptions = {}
   markThing = nil
 
+  if healthCircleResizeEvent then
+    removeEvent(healthCircleResizeEvent)
+    healthCircleResizeEvent = nil
+  end
 
   disconnect(g_game, {
     onGameStart = onGameStart,
     onGameEnd = onGameEnd,
     onLoginAdvice = onLoginAdvice
+  }, true)
+
+  disconnect(g_app, {
+    onRun = load,
+    onExit = save
   })
 
   disconnect(Creature, {
     onHealthPercentChange = creatureHealthPercentChange,
   })
-  disconnect(gameMapPanel, { onGeometryChange = updateSize })
-  connect(gameMapPanel, { onGeometryChange = updateSize, onVisibleDimensionChange = updateSize })
 
-  logoutButton:destroy()
-  gameRootPanel:destroy()
+  if gameLeftPanel then
+    disconnect(gameLeftPanel, { onVisibilityChange = onLeftPanelVisibilityChange })
+  end
+
+  if gameMapPanel then
+    disconnect(gameMapPanel, { onGeometryChange = updateSize, onVisibleDimensionChange = updateSize })
+  end
+
+  disconnect(g_game, { onMapChangeAwareRange = updateSize })
+
+  if gameRootPanel then
+    g_keyboard.unbindKeyDown('Ctrl+W', nil, gameRootPanel)
+  end
+
+  keybindStopAll:deactive()
+  keybindLogout:deactive()
+  keybindClearOldMessage:deactive()
+
+  if logoutButton then
+    logoutButton:destroy()
+    logoutButton = nil
+  end
+
+  if gameRootPanel then
+    gameRootPanel:destroy()
+    gameRootPanel = nil
+  end
+
+  gameMapPanel = nil
+  gameRightPanels = nil
+  gameLeftPanels = nil
+  gameBottomPanel = nil
+  horizontalRightPanel = nil
+  horizontalLeftPanel = nil
+  gameBottomActionPanel = nil
+  gameBottomCooldownPanel = nil
+  gameLeftActionPanel = nil
+  gameRightActionPanel = nil
+  gameLeftActions = nil
+  gameTopBar = nil
+  mouseGrabberWidget = nil
+  bottomSplitter = nil
 end
 
 function onMouseRelease(widget, pos, button)
@@ -218,6 +266,16 @@ function applyMouseCursorOptions()
   end
 end
 
+local function scheduleTopBarSettingsRefresh()
+  for _, delay in ipairs({50, 250, 750, 1500, 3000}) do
+    scheduleEvent(function()
+      if modules.game_topbar and modules.game_topbar.reloadFromSettings then
+        modules.game_topbar.reloadFromSettings()
+      end
+    end, delay)
+  end
+end
+
 function onGameStart()
   local benchmark = g_clock.millis()
   refreshViewMode()
@@ -229,6 +287,8 @@ function onGameStart()
     LoadedPlayer:setId(player:getId())
     LoadedPlayer:setName(player:getName())
     LoadedPlayer:setVocation(player:getVocation())
+
+    scheduleTopBarSettingsRefresh()
   end
 
   -- open Astra has delay in auto walking
@@ -583,7 +643,10 @@ function addToPanels(uiWidget)
   end
 
   uiWidget:close()
-  modules.game_textmessage.displayFailureMessage(tr('There is no available space.'))
+  local analyserTypes = {'bossCooldowns', 'damageInputAnalyser', 'lootTracker','huntingSessionAnalyser', 'impactAnalyser', 'lootAnalyser', 'partyHuntAnalyser', 'wasteAnalyser', 'xpAnalyser', 'miscAnalyzer'}
+  if not table.find(analyserTypes, uiWidget:getType()) then
+    modules.game_textmessage.displayFailureMessage(tr('There is no available space.'))
+  end
   return false
 end
 
@@ -627,6 +690,24 @@ function addToPanelsWithPriority(uiWidget, forcePriority)
   local widgetName = uiWidget:getId()
   if string.find(widgetName, "widget") then
     uiWidget:setHeight(uiWidget:getMinimumHeight())
+  end
+
+  local function forceWidgetOnPanel(widget, panel)
+    if not widget or not panel then
+      return false
+    end
+
+    widget:setParent(panel)
+    local oldOnClose = widget.onClose
+    widget.onClose = function()
+      if oldOnClose then oldOnClose() end
+      local parent = widget:getParent()
+      if parent then parent:removeChild(widget) end
+    end
+    if panel.fitAll then
+      panel:fitAll(widget)
+    end
+    return true
   end
   
   -- Build panels list in same order as original addToPanels
@@ -703,9 +784,7 @@ function addToPanelsWithPriority(uiWidget, forcePriority)
           if configureWidgetOnPanel(uiWidget, panel) then
             return true
           else
-            -- Direct move as fallback
-            uiWidget:moveTo(panel)
-            return true
+            return forceWidgetOnPanel(uiWidget, panel)
           end
         end
       else
@@ -738,8 +817,7 @@ function addToPanelsWithPriority(uiWidget, forcePriority)
     -- For priority widgets, force placement on first available panel as absolute last resort
     if #panels > 0 then
       local firstPanel = panels[1].panel
-      uiWidget:moveTo(firstPanel)
-      return true
+      return forceWidgetOnPanel(uiWidget, firstPanel)
     end
   else
     uiWidget:close()
@@ -1047,15 +1125,17 @@ function createThingMenu(tile, menuPosition, lookThing, useThing, creatureThing)
     if useThing:isUnwrapable() then
       menu:addOption(tr('Unwrap'), function() g_game.wrap(useThing) end)
     end
-    if useThing:isRotateable() or useThing:isPodium() then
+    local podiumIds = {RENOWN_PODIUM, LEGACY_RENOWN_PODIUM, VIGOUR_PODIUM, TENACITY_PODIUM, ASTRA_MONSTER_PODIUM}
+    local isPodium = table.contains(podiumIds, useThing:getId())
+    if useThing:isRotateable() or isPodium then
       menu:addOption(tr('Rotate'), function() g_game.rotate(useThing) end)
     end
-    if useThing:isPodium() then
+    if isPodium then
       menu:addOption(tr('Customise Podium'),
         function()
-          if useThing:getId() == VIGOUR_PODIUM or useThing:getId() == TENACITY_PODIUM then
+          if useThing:getId() == VIGOUR_PODIUM or useThing:getId() == TENACITY_PODIUM or useThing:getId() == ASTRA_MONSTER_PODIUM then
             modules.game_monster_podium.requestMonsterData(useThing)
-          elseif useThing:getId() == RENOWN_PODIUM then
+          elseif useThing:getId() == RENOWN_PODIUM or useThing:getId() == LEGACY_RENOWN_PODIUM then
             modules.game_player_podium.requestPodiumOutfitData(useThing)
           end
         end)
@@ -1190,7 +1270,7 @@ function createThingMenu(tile, menuPosition, lookThing, useThing, creatureThing)
           local coloredText = {}
           setStringColor(coloredText, '(Store)', '$var-text-cip-store-timed')
 
-          menu:addOption(tr('Customise Character'), function() g_game.requestOutfit(2, creatureThing:getId()) end)
+          menu:addOption(tr('Customise Character'), function() g_game.requestHirelingOutfit(creatureThing:getId()) end)
           menu:addOption(tr('Change Name/Sex'), function() g_game.openStore() end, coloredText)
           menu:addSeparator()
           menu:addOption(tr('Report Name'), function() modules.game_report.doReportMacro(creatureThing:getId(), creatureThing:getName()) end)
@@ -1808,44 +1888,82 @@ function getRightBar()
   return gameRightBar
 end
 
+local function replaceAnchor(widget, anchor, target, targetAnchor)
+  if not widget then
+    return
+  end
+
+  widget:removeAnchor(anchor)
+  widget:addAnchor(anchor, target, targetAnchor)
+end
+
+local function anchorGameAreaToParentTop()
+  replaceAnchor(gameMapPanel, AnchorTop, 'parent', AnchorTop)
+  replaceAnchor(gameLeftActionPanel, AnchorTop, 'parent', AnchorTop)
+  replaceAnchor(gameRightActionPanel, AnchorTop, 'parent', AnchorTop)
+  gameLeftActionPanel:setPaddingTop(54)
+  gameRightActionPanel:setPaddingTop(54)
+end
+
+local function anchorGameAreaToTopBar()
+  replaceAnchor(gameMapPanel, AnchorTop, 'gameTopBar', AnchorBottom)
+  replaceAnchor(gameLeftActionPanel, AnchorTop, 'gameTopBar', AnchorBottom)
+  replaceAnchor(gameRightActionPanel, AnchorTop, 'gameTopBar', AnchorBottom)
+  gameLeftActionPanel:setPaddingTop(1)
+  gameRightActionPanel:setPaddingTop(1)
+end
+
+local function scheduleHealthCircleResizeUpdates()
+  if healthCircleResizeEvent then
+    removeEvent(healthCircleResizeEvent)
+  end
+
+  healthCircleResizeEvent = scheduleEvent(function()
+    healthCircleResizeEvent = nil
+    if modules.game_healthcircle and modules.game_healthcircle.scheduleMapResizeUpdates then
+      modules.game_healthcircle.scheduleMapResizeUpdates()
+    end
+  end, 50)
+end
+
 function updateTopBar(side)
   if side == "bottom" then
+    gameTopBar:setVisible(true)
     gameTopBar:setParent(gameBottomActionPanel)
     gameMapPanel:addAnchor(AnchorLeft, 'gameLeftActionPanel', AnchorRight)
     gameMapPanel:addAnchor(AnchorRight, 'gameRightActionPanel', AnchorLeft)
     gameMapPanel:addAnchor(AnchorBottom, 'bottomSplitter', AnchorTop)
-    gameMapPanel:addAnchor(AnchorTop, 'parent', AnchorTop)
-
-    gameLeftActionPanel:addAnchor(AnchorTop, 'parent', AnchorTop)
-    gameRightActionPanel:addAnchor(AnchorTop, 'parent', AnchorTop)
-    gameLeftActionPanel:setPaddingTop(54)
-    gameRightActionPanel:setPaddingTop(54)
+    anchorGameAreaToParentTop()
   elseif side == "top" then
+    gameTopBar:setVisible(true)
     gameTopBar:setParent(gameRootPanel)
-    gameTopBar:addAnchor(AnchorTop, 'parent', AnchorTop)
-    gameTopBar:addAnchor(AnchorLeft, 'gameBottomActionPanel', AnchorLeft)
-    gameTopBar:addAnchor(AnchorRight, 'gameBottomActionPanel', AnchorRight)
+    replaceAnchor(gameTopBar, AnchorTop, 'parent', AnchorTop)
+    replaceAnchor(gameTopBar, AnchorLeft, 'gameBottomActionPanel', AnchorLeft)
+    replaceAnchor(gameTopBar, AnchorRight, 'gameBottomActionPanel', AnchorRight)
 
     gameRootPanel:moveChildToIndex(gameTopBar, 1)
     gameMapPanel:addAnchor(AnchorLeft, 'gameLeftActionPanel', AnchorRight)
     gameMapPanel:addAnchor(AnchorRight, 'gameRightActionPanel', AnchorLeft)
     gameMapPanel:addAnchor(AnchorBottom, 'bottomSplitter', AnchorTop)
-    gameMapPanel:addAnchor(AnchorTop, 'gameTopBar', AnchorBottom)
-
-    gameLeftActionPanel:setPaddingTop(1)
-    gameRightActionPanel:setPaddingTop(1)
-    gameLeftActionPanel:addAnchor(AnchorTop, 'gameTopBar', AnchorBottom)
-    gameRightActionPanel:addAnchor(AnchorTop, 'gameTopBar', AnchorBottom)
+    anchorGameAreaToTopBar()
 
   elseif side == "left" or side == "right" then
-    gameLeftActionPanel:addAnchor(AnchorTop, 'parent', AnchorTop)
-    gameRightActionPanel:addAnchor(AnchorTop, 'parent', AnchorTop)
-    gameLeftActionPanel:setPaddingTop(54)
-    gameRightActionPanel:setPaddingTop(54)
+    gameTopBar:setVisible(false)
+    anchorGameAreaToParentTop()
+    gameMapPanel:addAnchor(AnchorBottom, 'bottomSplitter', AnchorTop)
+  else
+    gameTopBar:setVisible(false)
+    anchorGameAreaToParentTop()
     gameMapPanel:addAnchor(AnchorBottom, 'bottomSplitter', AnchorTop)
   end
 
-  gameMapPanel:setMarginBottom(0)
+  if g_settings.getBoolean("classicView") and modules.game_actionbar and modules.game_actionbar.updateGameMapPanelMargin then
+    modules.game_actionbar.updateGameMapPanelMargin()
+  else
+    gameMapPanel:setMarginBottom(0)
+  end
+
+  scheduleHealthCircleResizeUpdates()
 end
 
 function refreshViewMode()
@@ -1920,7 +2038,20 @@ function refreshViewMode()
     gameMapPanel:addAnchor(AnchorRight, 'gameRightActionPanel', AnchorLeft)
     gameMapPanel:addAnchor(AnchorBottom, 'gameBottomActionPanel', AnchorTop)
     gameMapPanel:addAnchor(AnchorBottom, 'gameBottomCooldownPanel', AnchorTop)
-    gameMapPanel:addAnchor(AnchorTop, 'gameTopBar', AnchorBottom)
+    local customisableTopBarEnabled = false
+    if modules.game_topbar then
+      if modules.game_topbar.shouldShowCustomisableBar then
+        customisableTopBarEnabled = modules.game_topbar.shouldShowCustomisableBar()
+      elseif modules.game_topbar.isCustomisableBarVisible then
+        customisableTopBarEnabled = modules.game_topbar.isCustomisableBarVisible()
+      end
+    end
+
+    if customisableTopBarEnabled then
+      updateTopBar(modules.game_topbar.getCurrentDirection())
+    else
+      updateTopBar("hidden")
+    end
     gameMapPanel:setKeepAspectRatio(true)
     gameMapPanel:setLimitVisibleRange(false)
     gameMapPanel:setZoom(11)
@@ -2003,7 +2134,13 @@ function updateSize()
 
   gameMapPanel:setWidth(width)
   gameMapPanel:setHeight(height)
-  gameMapPanel:setMarginBottom(0)
+  if classic and modules.game_actionbar and modules.game_actionbar.updateGameMapPanelMargin then
+    modules.game_actionbar.updateGameMapPanelMargin()
+  else
+    gameMapPanel:setMarginBottom(0)
+  end
+
+  scheduleHealthCircleResizeUpdates()
 end
 
 function setupLeftActions()
@@ -2227,6 +2364,32 @@ function onLoadHorizontalPanels(horizontalLeftOptions, horizontalRightOptions)
   end
 end
 
+local function callRestoredWidgetMethod(widget, methodName)
+  local method = widget[methodName]
+  if not method then return false end
+
+  local ok, err = pcall(method, widget)
+  if not ok and g_logger and g_logger.warning then
+    g_logger.warning(string.format("Failed to %s restored widget %s: %s", methodName, widget:getId() or '', tostring(err)))
+  end
+  return ok
+end
+
+local function closeRestoredWidget(widget, primordial)
+  if not widget or not widget:isVisible() then
+    return
+  end
+
+  local id = widget:getId() or ''
+  if string.containsTable(id, primordial) then
+    return
+  end
+
+  if callRestoredWidgetMethod(widget, 'close') then return end
+  if callRestoredWidgetMethod(widget, 'destroy') then return end
+  callRestoredWidgetMethod(widget, 'hide')
+end
+
 function onPlayerLoad(config)
   if not config.leftSidebarCount then
     for i = 1, gameLeftPanels:getChildCount() do
@@ -2259,9 +2422,7 @@ function onPlayerLoad(config)
       local panel = gameRightPanels:getChildByIndex(i)
       if panel then
         for _, widget in pairs(panel:getChildren()) do
-          if widget:isVisible() and not string.containsTable(widget:getId(), primordial) then
-            widget:close()
-          end
+          closeRestoredWidget(widget, primordial)
         end
 
         for k, x in ipairs(config.openWidgetsOrderPerSidebar[i]) do
@@ -2275,9 +2436,7 @@ function onPlayerLoad(config)
       local panel = gameLeftPanels:getChildByIndex(i)
       if panel then
         for _, widget in pairs(panel:getChildren()) do
-          if widget:isVisible() and not string.containsTable(widget:getId(), primordial) then
-            widget:close()
-          end
+          closeRestoredWidget(widget, primordial)
         end
 
         for k, x in ipairs(config.openWidgetsOrderPerSidebar[i + rightPanels]) do
@@ -2289,9 +2448,7 @@ function onPlayerLoad(config)
     -- get Right Horizontal
     if config.openWidgetsHorizontalRight then
       for _, widget in pairs(horizontalRightPanel:getChildren()) do
-        if widget:isVisible() and not string.containsTable(widget:getId(), primordial) then
-          widget:close()
-        end
+        closeRestoredWidget(widget, primordial)
       end
 
       for k, x in ipairs(config.openWidgetsHorizontalRight) do
@@ -2335,9 +2492,7 @@ function onPlayerLoad(config)
     -- get Left Horizontal
     if config.openWidgetsHorizontalLeft then
       for _, widget in pairs(horizontalLeftPanel:getChildren()) do
-        if widget:isVisible() and not string.containsTable(widget:getId(), primordial) then
-          widget:close()
-        end
+        closeRestoredWidget(widget, primordial)
       end
 
       for k, x in ipairs(config.openWidgetsHorizontalLeft) do

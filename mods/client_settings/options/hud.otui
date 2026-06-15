@@ -170,7 +170,10 @@ HudWindow < Panel
       anchors.left: parent.left
       margin-top: 6
       margin-left: 58
-      @onCheckChange: modules.client_settings.harmonyArcSide("health")
+      @onCheckChange: |
+        if self:isChecked() then
+          modules.client_settings.harmonyArcSide("health")
+        end
       change-cursor-image: false
       $hover !disabled:
         color: $var-text-cip-color
@@ -185,7 +188,10 @@ HudWindow < Panel
       anchors.left: parent.left
       margin-top: 6
       margin-left: 58
-      @onCheckChange: modules.client_settings.harmonyArcSide("mana")
+      @onCheckChange: |
+        if self:isChecked() then
+          modules.client_settings.harmonyArcSide("mana")
+        end
       change-cursor-image: false
       $hover !disabled:
         color: $var-text-cip-color

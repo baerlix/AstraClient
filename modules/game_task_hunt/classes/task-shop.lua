@@ -3,6 +3,7 @@ TaskShop = {}
 local shopGrid = nil
 local shopData = {}
 local confirmBox = nil
+local currentBalance = nil
 
 local bonusTypeImages = {
     ["wheel_of_destiny_points"] = '/images/game/task_hunt/icon_tasksystem_promotionpoint'
@@ -17,9 +18,25 @@ function TaskShop.init(shopPanel)
     shopGrid = shopPanel:recursiveGetChildById('shopGrid')
 end
 
-function TaskShop.onShopData(items)
+local function applyTaskHuntingBalance(balance)
+    currentBalance = tonumber(balance) or 0
+
+    if taskHuntWindow then
+        local panel = taskHuntWindow:recursiveGetChildById('taskShopPoints')
+        if panel then
+            local label = panel:recursiveGetChildById('panelLabel')
+            if label then label:setText(comma_value(currentBalance)) end
+        end
+    end
+
+    TaskShop.updateBalance(currentBalance)
+end
+
+function TaskShop.onShopData(items, taskHuntingPoints)
     local oldData = shopData
     shopData = items or {}
+
+    applyTaskHuntingBalance(taskHuntingPoints ~= nil and taskHuntingPoints or currentBalance)
 
     if not shopGrid or #oldData ~= #shopData or shopGrid:getChildCount() ~= #shopData then
         TaskShop.rebuild()
@@ -72,6 +89,10 @@ function TaskShop.rebuild()
         local data = TaskShop.parseItem(raw)
         TaskShop.createCard(shopGrid, data)
     end
+
+    if currentBalance ~= nil then
+        TaskShop.updateBalance(currentBalance)
+    end
 end
 
 function TaskShop.updateCards()
@@ -105,6 +126,10 @@ function TaskShop.updateCards()
         card.shopPrice = data.price
         card.shopBought = data.bought
     end
+
+    if currentBalance ~= nil then
+        TaskShop.updateBalance(currentBalance)
+    end
 end
 
 function TaskShop.parseItem(raw)
@@ -135,7 +160,8 @@ function TaskShop.parseItem(raw)
             lookFeet = 0
         }
     elseif data.type == "Decoration" then
-        data.itemId = tonumber(raw.itemId) or 0
+        data.clientId = tonumber(raw.clientId) or tonumber(raw.itemId) or 0
+        data.itemId = data.clientId
     elseif data.type == "Bonus" then
         data.bonusType = raw.bonusType or ""
         data.imageSource = bonusTypeImages[data.bonusType] or ""
@@ -209,7 +235,7 @@ function TaskShop.createCard(parent, data)
     end
 
     -- Preview: Outfit or Item
-    if data.outfit then
+    if data.outfit and (tonumber(data.outfit.lookType) or 0) > 0 then
         local creatureWidget = card:recursiveGetChildById('outfitCreature')
         if creatureWidget then
             pcall(function()
@@ -266,6 +292,7 @@ end
 
 function TaskShop.resetData()
     shopData = {}
+    currentBalance = nil
 end
 
 function TaskShop.terminate()
@@ -275,4 +302,5 @@ function TaskShop.terminate()
     end
     shopGrid = nil
     shopData = {}
+    currentBalance = nil
 end

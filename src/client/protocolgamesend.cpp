@@ -858,6 +858,15 @@ void ProtocolGame::sendRequestOutfit()
     send(msg);
 }
 
+void ProtocolGame::sendRequestHirelingOutfit(uint32 creatureId)
+{
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientRequestOutfit);
+    msg->addU8(1);
+    msg->addU32(creatureId);
+    send(msg);
+}
+
 void ProtocolGame::sendChangeOutfit(const Outfit& outfit)
 {
     auto msg = std::make_shared<OutputMessage>();
@@ -879,6 +888,8 @@ void ProtocolGame::sendChangeOutfit(const Outfit& outfit)
         msg->addU8(outfit.getAddons());
     if(g_game.getFeature(Otc::GamePlayerMounts))
         msg->addU16(outfit.getMount());
+    if (g_game.getFeature(Otc::GamePlayerFamiliars))
+        msg->addU16(outfit.getFamiliar());
     if (g_game.getFeature(Otc::GameWingsAndAura)) {
         msg->addU16(outfit.getWings());
         msg->addU16(outfit.getAura());
@@ -889,6 +900,55 @@ void ProtocolGame::sendChangeOutfit(const Outfit& outfit)
         msg->addU16(outfit.getHealthBar());
         msg->addU16(outfit.getManaBar());
     }
+    send(msg);
+}
+
+void ProtocolGame::sendInspectionNormalObject(const Position& position)
+{
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientInspectionObject);
+    msg->addU8(0);
+    addPosition(msg, position);
+    send(msg);
+}
+
+void ProtocolGame::sendInspectionObject(uint8 inspectionType, uint16 itemId, uint8 itemCount)
+{
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientInspectionObject);
+    msg->addU8(inspectionType);
+    msg->addU16(itemId);
+    msg->addU8(itemCount);
+    send(msg);
+}
+
+void ProtocolGame::sendMonsterPodiumOutfit(uint32 raceId, const Position& position, uint16 itemId, uint8 stackPos,
+                                           uint8 direction, bool podiumVisible, bool creatureVisible)
+{
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientSetMonsterPodium);
+    msg->addU32(raceId);
+    addPosition(msg, position);
+    msg->addU16(itemId);
+    msg->addU8(stackPos);
+    msg->addU8(direction);
+    msg->addU8(podiumVisible);
+    msg->addU8(creatureVisible);
+    send(msg);
+}
+
+void ProtocolGame::sendChangeHirelingOutfit(const Outfit& outfit, uint32 creatureId)
+{
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientChangeOutfit);
+    msg->addU8(1);
+    msg->addU16(outfit.getId());
+    msg->addU8(outfit.getHead());
+    msg->addU8(outfit.getBody());
+    msg->addU8(outfit.getLegs());
+    msg->addU8(outfit.getFeet());
+    msg->addU8(outfit.getAddons());
+    msg->addU32(creatureId);
     send(msg);
 }
 
@@ -1269,47 +1329,52 @@ void ProtocolGame::sendPreyHuntingAction(int slot, int actionType, bool upgrade,
     send(msg);
 }
 
-void ProtocolGame::sendTaskBoardCommand(const std::string& action, const std::string& data)
+void ProtocolGame::sendTaskBoardAction(uint8_t option, uint16_t value, uint16_t extraValue)
 {
-    const std::string payload = "{\"action\":\"" + action + "\",\"data\":" + data + "}";
-    sendExtendedOpcode(205, payload);
-}
+    g_game.enableBotCall();
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientTaskBoardAction);  // 0x5F
+    msg->addU8(option);
 
-void ProtocolGame::sendBountyTaskAction(int actionType, int param)
-{
-    sendTaskBoardCommand("bountyTaskAction",
-                         "{\"actionType\":" + std::to_string(actionType) +
-                         ",\"param\":" + std::to_string(param) + "}");
-}
-
-void ProtocolGame::sendWeeklyTaskAction(int actionType, int param)
-{
-    sendTaskBoardCommand("weeklyTaskAction",
-                         "{\"actionType\":" + std::to_string(actionType) +
-                         ",\"param\":" + std::to_string(param) + "}");
-}
-
-void ProtocolGame::sendTaskHuntingShopRequest()
-{
-    sendTaskBoardCommand("taskShopRequest");
-}
-
-void ProtocolGame::sendTaskHuntingShopPurchase(int itemId)
-{
-    sendTaskBoardCommand("taskShopPurchase", "{\"itemId\":" + std::to_string(itemId) + "}");
-}
-
-void ProtocolGame::sendBountyPreferredAction(int actionType, int slot, int raceId)
-{
-    sendTaskBoardCommand("bountyPreferredAction",
-                         "{\"actionType\":" + std::to_string(actionType) +
-                         ",\"slot\":" + std::to_string(slot) +
-                         ",\"raceId\":" + std::to_string(raceId) + "}");
-}
-
-void ProtocolGame::sendBountyTalismanUpgrade(int statType)
-{
-    sendTaskBoardCommand("bountyTalismanUpgrade", "{\"statType\":" + std::to_string(statType) + "}");
+    // Options with a single U8 payload:
+    switch (option) {
+        case 2:  // BOUNTY_CHANGE_DIFFICULTY
+        case 5:  // BOUNTY_SELECT_TASK
+        case 7:  // BOUNTY_TALISMAN_UPGRADE
+        case 8:  // WEEKLY_DELIVER
+        case 9:  // WEEKLY_SELECT_DIFFICULTY
+        case 11: // HUNTING_SHOP_BUY_OFFER
+            msg->addU8(static_cast<uint8_t>(std::clamp<uint16_t>(value, 0, 255)));
+            break;
+        // Options with U16 payload:
+        case 12: // PREFERRED_UNLOCK
+        case 13: // PREFERRED_CLEAR
+        case 14: // UNWANTED_CLEAR
+            msg->addU16(value);
+            break;
+        // Options with U16 + U16 payload:
+        case 15: // PREFERRED_ASSIGN
+        case 16: // UNWANTED_ASSIGN
+            msg->addU16(value);
+            msg->addU16(extraValue);
+            break;
+        // Options with no payload:
+        case 0:  // OPEN_BOUNTY
+        case 1:  // OPEN_WEEKLY
+        case 3:  // BOUNTY_REROLL
+        case 4:  // BOUNTY_CLAIM_DAILY
+        case 6:  // BOUNTY_CLAIM_REWARD
+        case 10: // OPEN_HUNTING_SHOP
+        case 17: // OPEN_SOULSEAL
+        case 18: // OPEN_PREFERRED
+            break;
+        default:
+            g_logger.error(stdext::format("Unknown task board action option %d", static_cast<int>(option)));
+            g_game.disableBotCall();
+            return;
+    }
+    send(msg);
+    g_game.disableBotCall();
 }
 
 void ProtocolGame::sendPreyRequest()
@@ -1482,5 +1547,12 @@ void ProtocolGame::sendTutorialChangeVocation(const uint8_t vocationClientId)
     auto msg = std::make_shared<OutputMessage>();
     msg->addU8(Proto::ClientTutorialChangeVocation);
     msg->addU8(vocationClientId);
+    send(msg);
+}
+
+void ProtocolGame::sendRequestBless()
+{
+    auto msg = std::make_shared<OutputMessage>();
+    msg->addU8(Proto::ClientRequestBless);
     send(msg);
 }

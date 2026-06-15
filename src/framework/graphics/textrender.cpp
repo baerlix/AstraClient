@@ -126,4 +126,3 @@ void TextRender::drawColoredText(const Point& pos, uint64_t hash, const std::vec
     }
     g_painter->drawText(pos, it->coords, colors, it->texture);
 }
-

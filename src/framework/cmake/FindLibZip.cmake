@@ -3,27 +3,28 @@ pkg_check_modules(PC_LIBZIP QUIET libzip)
 
 find_path(LIBZIP_INCLUDE_DIR_ZIP
     NAMES zip.h
-    HINTS ${PC_LIBZIP_INCLUDE_DIRS})
+    HINTS ${PC_LIBZIP_INCLUDE_DIRS} ${CMAKE_PREFIX_PATH}/include)
 
 find_path(LIBZIP_INCLUDE_DIR_ZIPCONF
     NAMES zipconf.h
-    HINTS ${PC_LIBZIP_INCLUDE_DIRS})
+    HINTS ${PC_LIBZIP_INCLUDE_DIRS} ${CMAKE_PREFIX_PATH}/include ${LIBZIP_INCLUDE_DIR_ZIP}/..)
 
-set(_LIBZIP_STATIC_LIBS libzip.a)
-set(_LIBZIP_SHARED_LIBS zip)
+set(_LIBZIP_STATIC_LIBS libzip.a zip)
+set(_LIBZIP_SHARED_LIBS zip libzip)
 
 if(USE_STATIC_LIBS)
   set(_LIBZIP_ORIG_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
   # Prefer static builds but allow falling back to shared libs when static archives are missing
-  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so" ".dylib")
+  # .lib incluido para achar a libzip estatica do vcpkg no Windows (zip.lib)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".a" ".so" ".dylib")
   find_library(LIBZIP_LIBRARY
       NAMES ${_LIBZIP_STATIC_LIBS} ${_LIBZIP_SHARED_LIBS}
-      HINTS ${PC_LIBZIP_LIBRARY_DIRS})
+      HINTS ${PC_LIBZIP_LIBRARY_DIRS} ${CMAKE_PREFIX_PATH}/lib)
   set(CMAKE_FIND_LIBRARY_SUFFIXES ${_LIBZIP_ORIG_SUFFIXES})
 else()
   find_library(LIBZIP_LIBRARY
       NAMES ${_LIBZIP_SHARED_LIBS} ${_LIBZIP_STATIC_LIBS}
-      HINTS ${PC_LIBZIP_LIBRARY_DIRS})
+      HINTS ${PC_LIBZIP_LIBRARY_DIRS} ${CMAKE_PREFIX_PATH}/lib)
 endif()
 
 set(LIBZIP_INCLUDE_DIR ${LIBZIP_INCLUDE_DIR_ZIP})

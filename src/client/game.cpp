@@ -39,7 +39,44 @@
 #include <framework/net/packet_player.h>
 #include <framework/net/packet_recorder.h>
 
+#include <limits>
+
 Game g_game;
+
+namespace {
+
+bool validateTaskBoardParam(const char* action, const char* field, int value, int maxValue)
+{
+    if (value < 0 || value > maxValue) {
+        g_logger.warning(stdext::format("%s: invalid %s %d", action, field, value));
+        return false;
+    }
+    return true;
+}
+
+bool validateTaskBoardU8Param(const char* action, const char* field, int value)
+{
+    return validateTaskBoardParam(action, field, value, std::numeric_limits<uint8_t>::max());
+}
+
+bool validateTaskBoardU16Param(const char* action, const char* field, int value)
+{
+    return validateTaskBoardParam(action, field, value, std::numeric_limits<uint16_t>::max());
+}
+
+bool validateTaskBoardPositiveU16Param(const char* action, const char* field, int value)
+{
+    if (!validateTaskBoardU16Param(action, field, value))
+        return false;
+
+    if (value == 0) {
+        g_logger.warning(stdext::format("%s: invalid %s %d", action, field, value));
+        return false;
+    }
+    return true;
+}
+
+} // namespace
 
 Game::Game()
 {
@@ -461,13 +498,21 @@ void Game::processRemoveAutomapFlag(const Position& pos, int icon, const std::st
 
 void Game::processOpenOutfitWindow(const Outfit& currentOutfit, const std::vector<std::tuple<int, std::string, int>>& outfitList,
                                    const std::vector<std::tuple<int, std::string>>& mountList,
+                                   const std::vector<std::tuple<int, std::string>>& familiarList,
                                    const std::vector<std::tuple<int, std::string>>& wingList,
                                    const std::vector<std::tuple<int, std::string>>& auraList,
                                    const std::vector<std::tuple<int, std::string>>& shaderList,
                                    const std::vector<std::tuple<int, std::string>>& healthBarList,
                                    const std::vector<std::tuple<int, std::string>>& manaBarList)
 {
-    g_lua.callGlobalField("g_game", "onOpenOutfitWindow", currentOutfit, outfitList, mountList, wingList, auraList, shaderList, healthBarList, manaBarList);
+    g_lua.callGlobalField("g_game", "onOpenOutfitWindow", currentOutfit, outfitList, mountList, familiarList,
+                          wingList, auraList, shaderList, healthBarList, manaBarList);
+}
+
+void Game::processOpenHirelingWindow(const Outfit& currentOutfit, const std::vector<std::tuple<int, std::string, int, int>>& outfitList,
+                                     int sex, uint32 creatureId, const std::vector<std::tuple<int, int>>& tryOnList)
+{
+    g_lua.callGlobalField("g_game", "onOpenHirelingWindow", currentOutfit, outfitList, sex, creatureId, tryOnList);
 }
 
 void Game::processOpenNpcTrade(const std::vector<std::tuple<ItemPtr, std::string, int, int64_t, int64_t> >& items)
@@ -1160,11 +1205,59 @@ void Game::requestOutfit()
     m_protocolGame->sendRequestOutfit();
 }
 
+void Game::requestHirelingOutfit(uint32 creatureId)
+{
+    if(!canPerformGameAction())
+        return;
+    m_protocolGame->sendRequestHirelingOutfit(creatureId);
+}
+
+void Game::requestBlessings()
+{
+    if(!canPerformGameAction())
+        return;
+    m_protocolGame->sendRequestBless();
+}
+
 void Game::changeOutfit(const Outfit& outfit)
 {
     if(!canPerformGameAction())
         return;
     m_protocolGame->sendChangeOutfit(outfit);
+}
+
+void Game::changeHirelingOutfit(const Outfit& outfit, uint32 creatureId)
+{
+    if(!canPerformGameAction())
+        return;
+    m_protocolGame->sendChangeHirelingOutfit(outfit, creatureId);
+}
+
+void Game::sendInspectionNormalObject(const Position& position)
+{
+    if (!canPerformGameAction())
+        return;
+    m_protocolGame->sendInspectionNormalObject(position);
+}
+
+void Game::sendInspectionObject(int inspectionType, int itemId, int itemCount)
+{
+    if (!canPerformGameAction() || inspectionType < 0 || inspectionType > 255 ||
+        itemId < 0 || itemId > 65535 || itemCount < 0 || itemCount > 255)
+        return;
+    m_protocolGame->sendInspectionObject(static_cast<uint8>(inspectionType), static_cast<uint16>(itemId),
+                                          static_cast<uint8>(itemCount));
+}
+
+void Game::sendMonsterPodiumOutfit(int raceId, const Position& position, int itemId, int stackPos, int direction,
+                                   bool podiumVisible, bool creatureVisible)
+{
+    if (!canPerformGameAction() || raceId < 0 || itemId < 0 || itemId > 65535 ||
+        stackPos < 0 || stackPos > 255 || direction < 0 || direction > 3)
+        return;
+    m_protocolGame->sendMonsterPodiumOutfit(static_cast<uint32>(raceId), position, static_cast<uint16>(itemId),
+                                             static_cast<uint8>(stackPos), static_cast<uint8>(direction),
+                                             podiumVisible, creatureVisible);
 }
 
 void Game::addVip(const std::string& name)
@@ -1522,42 +1615,132 @@ void Game::bountyTaskAction(int actionType, int param)
 {
     if (!canPerformGameAction())
         return;
-    m_protocolGame->sendBountyTaskAction(actionType, param);
+
+    // Map Lua action types (bounty-tasks.lua) to wire protocol option bytes (0x5F)
+    switch (actionType) {
+        case 0: // ACTION_REROLL
+            m_protocolGame->sendTaskBoardAction(3);  // BOUNTY_REROLL
+            break;
+        case 1: // ACTION_SELECT
+            if (!validateTaskBoardU8Param("bountyTaskAction", "param", param))
+                return;
+            m_protocolGame->sendTaskBoardAction(5, static_cast<uint16_t>(param));  // BOUNTY_SELECT_TASK
+            break;
+        case 2: // ACTION_CLAIM_REWARD
+            m_protocolGame->sendTaskBoardAction(6);  // BOUNTY_CLAIM_REWARD
+            break;
+        case 3: // ACTION_CHANGE_DIFFICULTY
+            if (!validateTaskBoardU8Param("bountyTaskAction", "param", param))
+                return;
+            m_protocolGame->sendTaskBoardAction(2, static_cast<uint16_t>(param));  // BOUNTY_CHANGE_DIFFICULTY
+            break;
+        case 4: // ACTION_REQUEST
+            m_protocolGame->sendTaskBoardAction(0);  // OPEN_BOUNTY
+            break;
+        case 5: // ACTION_CLAIM_DAILY
+            m_protocolGame->sendTaskBoardAction(4);  // BOUNTY_CLAIM_DAILY
+            break;
+        default:
+            g_logger.warning(stdext::format("Unknown bounty task action type %d", actionType));
+            break;
+    }
 }
 
 void Game::weeklyTaskAction(int actionType, int param)
 {
     if (!canPerformGameAction())
         return;
-    m_protocolGame->sendWeeklyTaskAction(actionType, param);
+
+    // Map Lua action types to wire protocol option bytes
+    switch (actionType) {
+        case 0: // WEEKLY_ACTION_SELECT_DIFFICULTY
+            if (!validateTaskBoardU8Param("weeklyTaskAction", "param", param))
+                return;
+            m_protocolGame->sendTaskBoardAction(9, static_cast<uint16_t>(param));  // WEEKLY_SELECT_DIFFICULTY
+            break;
+        case 1: // WEEKLY_ACTION_DELIVER_ITEM
+            if (!validateTaskBoardU8Param("weeklyTaskAction", "param", param))
+                return;
+            m_protocolGame->sendTaskBoardAction(8, static_cast<uint16_t>(param));  // WEEKLY_DELIVER
+            break;
+        case 2: // WEEKLY_ACTION_REFRESH_DATA
+            m_protocolGame->sendTaskBoardAction(1);  // OPEN_WEEKLY
+            break;
+        default:
+            g_logger.warning(stdext::format("Unknown weekly task action type %d", actionType));
+            break;
+    }
 }
 
 void Game::taskHuntingShopRequest()
 {
     if (!canPerformGameAction())
         return;
-    m_protocolGame->sendTaskHuntingShopRequest();
+    m_protocolGame->sendTaskBoardAction(10);  // OPEN_HUNTING_SHOP
 }
 
 void Game::taskHuntingShopPurchase(int itemId)
 {
     if (!canPerformGameAction())
         return;
-    m_protocolGame->sendTaskHuntingShopPurchase(itemId);
+    if (!validateTaskBoardU8Param("taskHuntingShopPurchase", "itemId", itemId))
+        return;
+    m_protocolGame->sendTaskBoardAction(11, static_cast<uint16_t>(itemId));  // BUY_SHOP_OFFER
 }
 
 void Game::bountyPreferredAction(int actionType, int slot, int raceId)
 {
     if (!canPerformGameAction())
         return;
-    m_protocolGame->sendBountyPreferredAction(actionType, slot, raceId);
+
+    switch (actionType) {
+        case 0: // PREFERRED_ACTION_REQUEST
+            m_protocolGame->sendTaskBoardAction(18);  // OPEN_PREFERRED
+            break;
+        case 1: // PREFERRED_ACTION_BUY_SLOT
+            if (!validateTaskBoardU16Param("bountyPreferredAction", "slot", slot))
+                return;
+            m_protocolGame->sendTaskBoardAction(12, static_cast<uint16_t>(slot));  // PREFERRED_UNLOCK
+            break;
+        case 2: // PREFERRED_ACTION_SET_PREFERRED
+            if (!validateTaskBoardPositiveU16Param("bountyPreferredAction", "slot", slot))
+                return;
+            if (!validateTaskBoardPositiveU16Param("bountyPreferredAction", "raceId", raceId))
+                return;
+            m_protocolGame->sendTaskBoardAction(15, static_cast<uint16_t>(slot), static_cast<uint16_t>(raceId));  // PREFERRED_ASSIGN
+            break;
+        case 3: // PREFERRED_ACTION_SET_UNWANTED
+            if (!validateTaskBoardPositiveU16Param("bountyPreferredAction", "slot", slot))
+                return;
+            if (!validateTaskBoardPositiveU16Param("bountyPreferredAction", "raceId", raceId))
+                return;
+            m_protocolGame->sendTaskBoardAction(16, static_cast<uint16_t>(slot), static_cast<uint16_t>(raceId));  // UNWANTED_ASSIGN
+            break;
+        case 4: // PREFERRED_ACTION_REMOVE_PREFERRED
+            if (!validateTaskBoardPositiveU16Param("bountyPreferredAction", "slot", slot))
+                return;
+            m_protocolGame->sendTaskBoardAction(13, static_cast<uint16_t>(slot));  // PREFERRED_CLEAR
+            break;
+        case 5: // PREFERRED_ACTION_REMOVE_UNWANTED
+            if (!validateTaskBoardPositiveU16Param("bountyPreferredAction", "slot", slot))
+                return;
+            m_protocolGame->sendTaskBoardAction(14, static_cast<uint16_t>(slot));  // UNWANTED_CLEAR
+            break;
+        default:
+            g_logger.warning(stdext::format("Unknown bounty preferred action type %d", actionType));
+            break;
+    }
 }
 
 void Game::bountyTalismanUpgrade(int statType)
 {
     if (!canPerformGameAction())
         return;
-    m_protocolGame->sendBountyTalismanUpgrade(statType);
+    if (statType < 0 || statType > 3) {
+        g_logger.warning(stdext::format("bountyTalismanUpgrade: invalid pathIndex %d", statType));
+        return;
+    }
+    m_protocolGame->sendTaskBoardAction(7, static_cast<uint16_t>(statType));  // BOUNTY_TALISMAN_UPGRADE
 }
 
 void Game::preyRequest()
@@ -1880,6 +2063,13 @@ void Game::soulsealFightAction(const uint16_t raceId)
     if (!m_protocolGame)
         return;
     m_protocolGame->sendSoulSealsAction(raceId);
+}
+
+void Game::soulsealRequest()
+{
+    if (!canPerformGameAction())
+        return;
+    m_protocolGame->sendTaskBoardAction(17);  // OPEN_SOULSEAL
 }
 
 void Game::sendTutorialChangeVocation(const uint8_t vocationClientId)

@@ -78,6 +78,10 @@ public:
     void sendEditList(uint id, int doorId, const std::string& text);
     void sendLook(const Position& position, int thingId, int stackpos);
     void sendLookCreature(uint creatureId);
+    void sendInspectionNormalObject(const Position& position);
+    void sendInspectionObject(uint8 inspectionType, uint16 itemId, uint8 itemCount);
+    void sendMonsterPodiumOutfit(uint32 raceId, const Position& position, uint16 itemId, uint8 stackPos,
+                                 uint8 direction, bool podiumVisible, bool creatureVisible);
     void sendTalk(Otc::MessageMode mode, int channelId, const std::string& receiver, const std::string& message, const Position& pos, Otc::Direction dir);
     void sendRequestChannels();
     void sendJoinChannel(int channelId);
@@ -102,7 +106,9 @@ public:
     void sendCancelAttackAndFollow();
     void sendRefreshContainer(int containerId);
     void sendRequestOutfit();
+    void sendRequestHirelingOutfit(uint32 creatureId);
     void sendChangeOutfit(const Outfit& outfit);
+    void sendChangeHirelingOutfit(const Outfit& outfit, uint32 creatureId);
     void sendOutfitExtensionStatus(int mount = -1, int wings = -1, int aura = -1, int shader = -1, int healthBar = -1, int manaBar = -1);
     void sendApplyImbuement(uint8_t slot, uint32_t imbuementId, bool protectionCharm);
     void sendClearImbuement(uint8_t slot);
@@ -131,13 +137,7 @@ public:
     void sendOpenTransactionHistory(int entiresPerPage);
     void sendPreyAction(int slot, int actionType, int index);
     void sendPreyHuntingAction(int slot, int actionType, bool upgrade, int raceId);
-    void sendTaskBoardCommand(const std::string& action, const std::string& data = "{}");
-    void sendBountyTaskAction(int actionType, int param);
-    void sendWeeklyTaskAction(int actionType, int param);
-    void sendTaskHuntingShopRequest();
-    void sendTaskHuntingShopPurchase(int itemId);
-    void sendBountyPreferredAction(int actionType, int slot, int raceId);
-    void sendBountyTalismanUpgrade(int statType);
+    void sendTaskBoardAction(uint8_t option, uint16_t value = 0, uint16_t extraValue = 0);
     void sendPreyRequest();
     void sendProcesses();
     void sendDlls();
@@ -146,6 +146,7 @@ public:
     void sendStartOfflineTraining(uint8_t skillType);
     void sendSoulSealsAction(uint16_t raceId);
     void sendTutorialChangeVocation(uint8_t vocationClientId);
+    void sendRequestBless();
     void sendApplyWheelPoints(const std::vector<uint16_t>& slotPoints, uint16_t greenGem, uint16_t redGem, uint16_t aquaGem, uint16_t purpleGem);
     void sendWheelGemAction(uint8_t actionType, uint8_t param, uint8_t pos);
     void sendWeaponProficiencyAction(uint8_t actionType, uint16_t itemId = 0);
@@ -316,11 +317,18 @@ private:
     void parseMultiOfflineTrainingDialog(const InputMessagePtr& msg);
     void parseTaskHuntingBasicData(const InputMessagePtr& msg);
     void parseTaskBoardData(const InputMessagePtr& msg);
+    void parseTaskBoardBountyData(const InputMessagePtr& msg);
+    void parseTaskBoardWeeklyData(const InputMessagePtr& msg);
+    void parseTaskBoardShopData(const InputMessagePtr& msg);
     void parseSupplyTracker(const InputMessagePtr& msg);
     void parseTournamentLeaderboard(const InputMessagePtr& msg);
     void parseCustomItemValues(const InputMessagePtr& msg);
     void parseCustomItemDetails(const InputMessagePtr& msg);
     void parseImpactTracker(const InputMessagePtr& msg);
+    void parseBossCooldown(const InputMessagePtr& msg);
+    void parseCharmActivated(const InputMessagePtr& msg);
+    void parseImbuementActivated(const InputMessagePtr& msg);
+    void parseSpecialSkillActivated(const InputMessagePtr& msg);
     void parseItemsPrices(const InputMessagePtr& msg);
     void parseLootTracker(const InputMessagePtr& msg);
     void parseItemDetail(const InputMessagePtr& msg);

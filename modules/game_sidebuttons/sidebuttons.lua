@@ -7,12 +7,17 @@ highscore = nil
 isHiddenMenuActive = false
 currentOpenWidget = nil
 
+local MAIN_BUTTONS_BASE_HEIGHT = 101 -- 77px base + 20px Battle Pass button + 4px margin
+
 -- Hotfix when a new button is introduced
-local forceButtons = { "weaponProficiency" }
+local forceButtons = {
+  { id = "weaponProficiency" },
+  { id = "taskHuntDialog", after = "skillWheelDialog" }
+}
 
 local buttons = {
   "skillsButton", "battleButton", "partyList", "vipButton", "spellList", "wheel", "questLog",
-  "questTracker", "unjustPoints", "preyDialog", "preyWindow", "rewardWall",
+  "questTracker", "unjustPoints", "preyDialog", "preyWindow", "rewardWallDialog",
   "analytics", "compendium", "cyclopedia", "bosstiaryDialog", "bossSlots",
   "bosstiaryTracker", "bestiary", "imbueTracker", "exaltationForge",
   "socialDialog", "lenshelpFunction", "highscore", "helperDialog", "weaponProficiency",
@@ -32,6 +37,26 @@ function getControlButtonTooltip(button)
   return buttonTooltip
 end
 
+local function ensureForcedButtons(activeWidgets, inactiveWidgets)
+  for _, button in ipairs(forceButtons) do
+    local buttonId = button.id
+    if not table.find(activeWidgets, buttonId) and not table.find(inactiveWidgets, buttonId) then
+      local afterIndex = button.after and table.find(activeWidgets, button.after) or nil
+      if type(afterIndex) == "number" then
+        table.insert(activeWidgets, afterIndex + 1, buttonId)
+      else
+        table.insert(activeWidgets, buttonId)
+      end
+    end
+  end
+end
+
+function openBattlePassWindow()
+  if modules.game_battlepass and modules.game_battlepass.BattlePass then
+    modules.game_battlepass.BattlePass.onBattlePassBarClick()
+  end
+end
+
 function init()
   buttonsWindow = g_ui.loadUI('sidebuttons', m_interface.getRightPanel())
   local activeWidgets = Options.getActiveWidgets()
@@ -41,11 +66,7 @@ function init()
 
   storeBorder:setImageShader("text_staff")
 
-  for k, v in pairs(forceButtons) do
-    if not table.find(activeWidgets, v) and not table.find(inactiveWidgets, v) then
-      table.insert(activeWidgets, v)
-    end
-  end
+  ensureForcedButtons(activeWidgets, inactiveWidgets)
 
   for _, v in pairs(activeWidgets) do
     local widget = g_ui.createWidget("UISideButton", buttonPanel)
@@ -56,7 +77,7 @@ function init()
   end
 
   local totalLines = math.max(2, math.ceil(buttonPanel:getChildCount() / 5))
-  buttonsWindow:setHeight(77 + ((totalLines - 1) * 22))
+  buttonsWindow:setHeight(MAIN_BUTTONS_BASE_HEIGHT + ((totalLines - 1) * 22))
 
   if modules.game_minimap and modules.game_minimap.isOpen and modules.game_minimap.isOpen() then
     setButtonVisible("lenshelpFunction", true)
@@ -105,11 +126,7 @@ function updateSideButtons()
   local inactiveWidgets = Options.getInactiveWidgets()
   local buttonPanel = buttonsWindow:recursiveGetChildById("buttons")
 
-  for k, v in pairs(forceButtons) do
-    if not table.find(activeWidgets, v) and not table.find(inactiveWidgets, v) then
-      table.insert(activeWidgets, v)
-    end
-  end
+  ensureForcedButtons(activeWidgets, inactiveWidgets)
 
   buttonPanel:destroyChildren()
   for _, v in pairs(activeWidgets) do
@@ -121,7 +138,7 @@ function updateSideButtons()
   end
 
   local totalLines = math.max(2, math.ceil(buttonPanel:getChildCount() / 5))
-  buttonsWindow:setHeight(77 + ((totalLines - 1) * 22))
+  buttonsWindow:setHeight(MAIN_BUTTONS_BASE_HEIGHT + ((totalLines - 1) * 22))
 end
 
 function terminate()
@@ -245,11 +262,7 @@ function isToggleButton(buttonId)
   for _, toggleButtonId in pairs(toggleButtons) do
       if buttonId == toggleButtonId then
           return true
-  elseif parentId == "taskHuntDialog" then
-    if modules.game_task_hunt and modules.game_task_hunt.hide then
-      modules.game_task_hunt.hide()
     end
-  end
   end
   return false
 end
@@ -293,7 +306,9 @@ function executeButtonFunctionality(button)
   elseif button:getParent():getId() == "preyDialog" then
     modules.game_prey.toggle()
   elseif button:getParent():getId() == "preyWidget" then
-    modules.game_prey:toggleTracker()
+    if modules.game_trackers and modules.game_trackers.toggleKillTracker then
+      modules.game_trackers.toggleKillTracker()
+    end
   elseif button:getParent():getId() == "rewardWallDialog" then
       g_game.openDailyReward()
   elseif button:getParent():getId() == "analyticsSelectorWidget" then
@@ -411,6 +426,10 @@ function forceCloseButton(button)
     if m_settings and m_settings.closeOptions then
       m_settings.closeOptions()
     end
+  elseif parentId == "taskHuntDialog" then
+    if modules.game_task_hunt and modules.game_task_hunt.hide then
+      modules.game_task_hunt.hide()
+    end
   end
 end
 
@@ -425,11 +444,23 @@ function toggleMainButtons()
   local logoutButton = buttonsWindow:recursiveGetChildById('logout')
   local separator = buttonsWindow:recursiveGetChildById('sep')
   local hiddenMenuButton = buttonsWindow:recursiveGetChildById('hiddenMenu')
+  local battlePassButton = buttonsWindow:recursiveGetChildById('battlePassButton')
+  local battlePassBorder = buttonsWindow:recursiveGetChildById('battlePassBorder')
+  local battlePassBright = buttonsWindow:recursiveGetChildById('battlePassBright')
 
   buttonsPanel:setVisible(not isHiddenMenuActive)
   optionsButton:setVisible(not isHiddenMenuActive)
   logoutButton:setVisible(not isHiddenMenuActive)
   separator:setVisible(not isHiddenMenuActive)
+  if battlePassButton then
+    battlePassButton:setVisible(not isHiddenMenuActive)
+  end
+  if battlePassBorder then
+    battlePassBorder:setVisible(not isHiddenMenuActive)
+  end
+  if battlePassBright then
+    battlePassBright:setVisible(not isHiddenMenuActive)
+  end
 
   if isHiddenMenuActive then
     buttonsWindow:setHeight(27)

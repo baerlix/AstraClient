@@ -10,6 +10,7 @@ function UIItem:setTier(tier)
 end
 
 function UIItem:hook()
+  ItemsDatabase.setRarityItem(self, self:getItem())
   ItemsDatabase.setTier(self, self:getItem())
   return self
 end
@@ -221,6 +222,7 @@ function UIItem:onHoverChange(hovered)
 
   if (self:isVirtual() and not self.clone) or (not self:isDraggable() and not self.clone) then
     self:setBorderWidth(0)
+    ItemsDatabase.setRarityItem(self, self:getItem())
     return
   end
 
@@ -310,5 +312,6 @@ function UIItem:onItemChange()
     tooltip = self:getItem():getTooltip()
   end
   self:setTooltip(tooltip)
+  ItemsDatabase.setRarityItem(self, self:getItem())
   ItemsDatabase.setTier(self, self:getItem())
 end

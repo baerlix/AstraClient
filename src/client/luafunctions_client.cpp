@@ -260,7 +260,13 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_game", "partyLeave", &Game::partyLeave, &g_game);
     g_lua.bindSingletonFunction("g_game", "partyShareExperience", &Game::partyShareExperience, &g_game);
     g_lua.bindSingletonFunction("g_game", "requestOutfit", &Game::requestOutfit, &g_game);
+    g_lua.bindSingletonFunction("g_game", "requestHirelingOutfit", &Game::requestHirelingOutfit, &g_game);
+    g_lua.bindSingletonFunction("g_game", "requestBlessings", &Game::requestBlessings, &g_game);
     g_lua.bindSingletonFunction("g_game", "changeOutfit", &Game::changeOutfit, &g_game);
+    g_lua.bindSingletonFunction("g_game", "changeHirelingOutfit", &Game::changeHirelingOutfit, &g_game);
+    g_lua.bindSingletonFunction("g_game", "sendInspectionNormalObject", &Game::sendInspectionNormalObject, &g_game);
+    g_lua.bindSingletonFunction("g_game", "sendInspectionObject", &Game::sendInspectionObject, &g_game);
+    g_lua.bindSingletonFunction("g_game", "sendMonsterPodiumOutfit", &Game::sendMonsterPodiumOutfit, &g_game);
     g_lua.bindSingletonFunction("g_game", "addVip", &Game::addVip, &g_game);
     g_lua.bindSingletonFunction("g_game", "removeVip", &Game::removeVip, &g_game);
     g_lua.bindSingletonFunction("g_game", "editVip", &Game::editVip, &g_game);
@@ -365,6 +371,7 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_game", "sendWeaponProficiencyApply", &Game::sendWeaponProficiencyApply, &g_game);
     g_lua.bindSingletonFunction("g_game", "sendStartOfflineTraining", &Game::sendStartOfflineTraining, &g_game);
     g_lua.bindSingletonFunction("g_game", "soulsealFightAction", &Game::soulsealFightAction, &g_game);
+    g_lua.bindSingletonFunction("g_game", "soulsealRequest", &Game::soulsealRequest, &g_game);
     g_lua.bindSingletonFunction("g_game", "sendTutorialChangeVocation", &Game::sendTutorialChangeVocation, &g_game);
     g_lua.bindSingletonFunction("g_game", "sendQuickLoot", &Game::sendQuickLoot, &g_game);
     g_lua.bindSingletonFunction("g_game", "quickLoot", &Game::quickLoot, &g_game);
@@ -870,6 +877,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<LocalPlayer>("getInventoryCount", &LocalPlayer::getInventoryCount);
     g_lua.bindClassMemberFunction<LocalPlayer>("hasEquippedItemId", &LocalPlayer::hasEquippedItemId);
     g_lua.bindClassMemberFunction<LocalPlayer>("getResourceValue", &LocalPlayer::getResourceValue);
+    g_lua.bindClassMemberFunction<LocalPlayer>("getResourceBalance", &LocalPlayer::getResourceBalance);
     g_lua.bindClassMemberFunction<LocalPlayer>("getBaseExpRate", &LocalPlayer::getBaseExpRate);
     g_lua.bindClassMemberFunction<LocalPlayer>("getLowLevelRate", &LocalPlayer::getLowLevelRate);
     g_lua.bindClassMemberFunction<LocalPlayer>("getExpBoostRate", &LocalPlayer::getExpBoostRate);
@@ -1008,6 +1016,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<UICreature>("isAnimating", &UICreature::isAnimating);
     g_lua.bindClassMemberFunction<UICreature>("setCenter", &UICreature::setCenter);
     g_lua.bindClassMemberFunction<UICreature>("setOldScaling", &UICreature::setOldScaling);
+    g_lua.bindClassMemberFunction<UICreature>("isColoredOutfit", &UICreature::isColoredOutfit);
     g_lua.bindClassMemberFunction<UICreature>("isColoredMount", &UICreature::isColoredMount);
 
     g_lua.registerClass<UIMap, UIWidget>();
@@ -1034,6 +1043,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<UIMap>("setDrawManaBar", &UIMap::setDrawManaBar);
     g_lua.bindClassMemberFunction<UIMap>("setDrawPlayerBars", &UIMap::setDrawPlayerBars);
     g_lua.bindClassMemberFunction<UIMap>("setAnimated", &UIMap::setAnimated);
+    g_lua.bindClassMemberFunction<UIMap>("setAntiAliasingMode", &UIMap::setAntiAliasingMode);
     g_lua.bindClassMemberFunction<UIMap>("setKeepAspectRatio", &UIMap::setKeepAspectRatio);
     g_lua.bindClassMemberFunction<UIMap>("setMinimumAmbientLight", &UIMap::setMinimumAmbientLight);
     g_lua.bindClassMemberFunction<UIMap>("setLimitVisibleRange", &UIMap::setLimitVisibleRange);

@@ -128,6 +128,8 @@ local function isStateActive(states, state)
 end
 
 local function isHudMasterEnabled()
+    local tmp = getTmpOption and getTmpOption('showInHudCheckBox')
+    if tmp ~= nil then return tmp end
     return getOption('showInHudCheckBox', true) ~= false
 end
 

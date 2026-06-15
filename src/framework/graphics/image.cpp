@@ -62,9 +62,10 @@ ImagePtr Image::loadPNG(const std::string& file)
         image = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata);
         if (apng.num_frames > 1 && apng.frames_delay) {
             const size_t frameSize = static_cast<size_t>(apng.width) * apng.height * apng.bpp;
-            const uint32_t frameCount = std::min(apng.num_frames, apng.last_frame);
+            const uint32_t availableFrames = apng.last_frame >= apng.first_frame ? apng.last_frame - apng.first_frame + 1 : 0;
+            const uint32_t frameCount = std::min(apng.num_frames, availableFrames);
             for (uint32_t i = 0; i < frameCount; ++i) {
-                auto frame = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata + (static_cast<size_t>(i) * frameSize));
+                auto frame = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata + (static_cast<size_t>(apng.first_frame + i) * frameSize));
                 image->addAnimationFrame(frame, apng.frames_delay[i]);
             }
         }
@@ -83,9 +84,10 @@ ImagePtr Image::loadPNG(const void* data, uint32_t size)
         image = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata);
         if (apng.num_frames > 1 && apng.frames_delay) {
             const size_t frameSize = static_cast<size_t>(apng.width) * apng.height * apng.bpp;
-            const uint32_t frameCount = std::min(apng.num_frames, apng.last_frame);
+            const uint32_t availableFrames = apng.last_frame >= apng.first_frame ? apng.last_frame - apng.first_frame + 1 : 0;
+            const uint32_t frameCount = std::min(apng.num_frames, availableFrames);
             for (uint32_t i = 0; i < frameCount; ++i) {
-                auto frame = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata + (static_cast<size_t>(i) * frameSize));
+                auto frame = std::make_shared<Image>(Size(apng.width, apng.height), apng.bpp, apng.pdata + (static_cast<size_t>(apng.first_frame + i) * frameSize));
                 image->addAnimationFrame(frame, apng.frames_delay[i]);
             }
         }
@@ -114,16 +116,27 @@ void Image::blit(const Point& dest, const ImagePtr& other)
     if (!other)
         return;
 
-    int width = other->getWidth(), height = other->getHeight();
+    const int width = other->getWidth();
+    const int height = other->getHeight();
+    const int destinationWidth = m_size.width();
+    const int destinationHeight = m_size.height();
     uint8* otherPixels = other->getPixelData();
-    for (int y = 0, p = 0; y < height; ++y) {
-        int pos = ((dest.y + y) * m_size.width() + dest.x) * 4;
+
+    for (int y = 0; y < height; ++y) {
+        const int destinationY = dest.y + y;
+        if (destinationY < 0 || destinationY >= destinationHeight)
+            continue;
+
         for (int x = 0; x < width; ++x) {
+            const int destinationX = dest.x + x;
+            if (destinationX < 0 || destinationX >= destinationWidth)
+                continue;
+
+            const int p = (y * width + x) * 4;
             if (otherPixels[p + 3] != 0) {
+                const int pos = (destinationY * destinationWidth + destinationX) * 4;
                 *(uint32_t*)&m_pixels[pos] = *(uint32_t*)&otherPixels[p];
             }
-            pos += 4;
-            p += 4;
         }
     }
 }

@@ -16,6 +16,7 @@ Module
     - game_console
     - game_outfit
     - game_healthinfo
+    - game_topbar
     - game_statusiconbar
     - game_inventory
     - game_containers
@@ -48,6 +49,7 @@ Module
     - game_dailyreward
     - game_memorial
     - game_trackers
+    - game_battlepass
     - game_wheel
     - game_monster_podium
     - game_player_podium

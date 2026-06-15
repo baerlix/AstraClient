@@ -178,6 +178,7 @@ namespace Proto {
         GameServerFloorChangeDown           = 191,
         GameServerLootContainers            = 192,
         GameServerWeaponProficiencyInfo      = 196,
+        GameServerMonsterPodium              = 194,
         GameServerTournamentLeaderboard     = 197,
         GameServerCustomItemValues          = 198,
         GameServerCustomItemDetails         = 199,
@@ -188,6 +189,10 @@ namespace Proto {
         GameServerLootTracker               = 207,
         GameServerQuestTracker              = 208,
         GameServerKillTracker               = 209,
+        GameServerBossCooldown              = 44,  // 0x2C
+        GameServerCharmActivated            = 45,  // 0x2D
+        GameServerImbuementActivated        = 48,  // 0x30
+        GameServerSpecialSkillActivated     = 49,  // 0x31
         GameServerVipAdd                    = 210,
         GameServerVipState                  = 211,
         GameServerVipLogoutOrGroupData      = 212,
@@ -252,6 +257,8 @@ namespace Proto {
 
         ClientNewWalk                       = 69,
 
+        ClientTaskBoardAction              = 95,  // 0x5F
+
         ClientProcessesResponse             = 80,
         ClientDllsResponse                  = 81,
         ClientWindowsResponse               = 82,
@@ -309,6 +316,7 @@ namespace Proto {
         ClientCloseRuleViolation            = 156,
         ClientCancelRuleViolation           = 157,
         ClientCloseNpcChannel               = 158,
+        ClientSetMonsterPodium               = 159,
         ClientChangeFightModes              = 160,
         ClientAttack                        = 161,
         ClientFollow                        = 162,
@@ -330,6 +338,8 @@ namespace Proto {
         ClientRefreshContainer              = 202,
         ClientBrowseField                   = 203,
         ClientSeekInContainer               = 204,
+        ClientInspectionObject              = 205,
+        ClientRequestBless                  = 207,
         ClientRequestOutfit                 = 210,
         ClientChangeOutfit                  = 211,
         ClientMount                         = 212, // 870

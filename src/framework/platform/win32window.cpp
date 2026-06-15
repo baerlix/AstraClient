@@ -30,6 +30,10 @@
 #include <framework/util/stats.h>
 #include <framework/util/extras.h>
 
+#include <array>
+#include <optional>
+#include <utility>
+
 WIN32Window::WIN32Window()
 {
     m_window = 0;
@@ -330,8 +334,13 @@ void WIN32Window::internalCreateGLContext()
 #ifdef OPENGL_ES
     PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
 
-    EGLint displayAttributes[3][5] =
+    EGLint displayAttributes[5][5] =
     { 
+        {
+            EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE,
+            EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+            EGL_NONE,
+        },
         {
             EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
@@ -347,6 +356,11 @@ void WIN32Window::internalCreateGLContext()
             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D_WARP_ANGLE,
             EGL_NONE,
         },
+        {
+            EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE,
+            EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+            EGL_NONE,
+        },
     };
 
     auto setupDisplay = [&](EGLDisplay display) -> bool {
@@ -359,23 +373,43 @@ void WIN32Window::internalCreateGLContext()
     };
 
     if (eglGetPlatformDisplayEXT) {
-        std::string args(GetCommandLineA());
-        if (args.find("-dx11") != std::string::npos) {
-            setupDisplay(eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, displayAttributes[0]));
-        } else if (args.find("-dx9") != std::string::npos) {
-            setupDisplay(eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, displayAttributes[1]));
-        } else if (args.find("-warp") != std::string::npos) {
-            setupDisplay(eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, displayAttributes[2]));
-        } else {
-            for (EGLint* attributes : displayAttributes) {
-                if (setupDisplay(eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, attributes)))
+        const std::array<std::pair<const char*, size_t>, 5> rendererOptions = {{
+            {"-vulkan", 0},
+            {"-dx11", 1},
+            {"-dx9", 2},
+            {"-warp", 3},
+            {"-opengl", 4},
+        }};
+
+        std::optional<size_t> requestedBackend;
+        for (const auto& [option, index] : rendererOptions) {
+            if (g_app.hasStartupOption(option)) {
+                requestedBackend = index;
+                break;
+            }
+        }
+
+        const auto tryBackend = [&](size_t index) {
+            return setupDisplay(eglGetPlatformDisplayEXT(
+                EGL_PLATFORM_ANGLE_ANGLE, EGL_DEFAULT_DISPLAY, displayAttributes[index]));
+        };
+
+        if (requestedBackend && !tryBackend(*requestedBackend)) {
+            g_logger.warning("Requested graphics backend is unavailable, trying automatic fallback.");
+        }
+
+        if (!m_eglDisplay) {
+            for (const auto& [option, index] : rendererOptions) {
+                if (requestedBackend && index == *requestedBackend)
+                    continue;
+                if (tryBackend(index))
                     break;
             }
         }
     }        
     
     if (!m_eglDisplay && !setupDisplay(eglGetDisplay(m_deviceContext))) {
-        g_logger.fatal("DirectX is not supported, try to use OpenGL version or install latest directx drivers. Also, make sure that your folder contains libEGL.dll, libGLESv2.dll and d3dcompiler_47.dll.");
+        g_logger.fatal("No supported graphics backend was found. Update your graphics drivers and make sure libEGL.dll, libGLESv2.dll and d3dcompiler_47.dll are present.");
     }
 
     static int configList[] = {
@@ -654,6 +688,9 @@ LRESULT WIN32Window::windowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     switch(uMsg)
     {
         case WM_SETCURSOR: {
+            if (LOWORD(lParam) != HTCLIENT)
+                return DefWindowProc(hWnd, uMsg, wParam, lParam);
+
             if(m_cursor)
                 SetCursor(m_cursor);
             else
@@ -978,29 +1015,46 @@ int WIN32Window::internalLoadMouseCursor(const ImagePtr& image, const Point& hot
         const ImagePtr& frameImage = frame.image;
         int width = frameImage->getWidth();
         int height = frameImage->getHeight();
-        int pixelCount = width * height;
-        std::vector<uint32> cursorPixels(pixelCount);
+        BITMAPINFO bitmapInfo = {};
+        bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bitmapInfo.bmiHeader.biWidth = width;
+        bitmapInfo.bmiHeader.biHeight = -height;
+        bitmapInfo.bmiHeader.biPlanes = 1;
+        bitmapInfo.bmiHeader.biBitCount = 32;
+        bitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+        void* colorBits = nullptr;
+        HDC screenDc = GetDC(nullptr);
+        HBITMAP colorBitmap = screenDc ? CreateDIBSection(screenDc, &bitmapInfo, DIB_RGB_COLORS, &colorBits, nullptr, 0) : nullptr;
+        if (screenDc)
+            ReleaseDC(nullptr, screenDc);
 
         const int maskStride = ((width + 15) / 16) * 2;
         std::vector<uint8> maskPixels(maskStride * height, 0);
 
-        for (int i = 0; i < pixelCount; ++i) {
-            uint8* pixel = reinterpret_cast<uint8*>(&cursorPixels[i]);
-            pixel[2] = *(frameImage->getPixelData() + (i * 4) + 0);
-            pixel[1] = *(frameImage->getPixelData() + (i * 4) + 1);
-            pixel[0] = *(frameImage->getPixelData() + (i * 4) + 2);
-            pixel[3] = *(frameImage->getPixelData() + (i * 4) + 3);
+        if (colorBitmap && colorBits) {
+            auto* cursorPixels = static_cast<uint8*>(colorBits);
+            for (int i = 0; i < width * height; ++i) {
+                const uint8 red = *(frameImage->getPixelData() + (i * 4) + 0);
+                const uint8 green = *(frameImage->getPixelData() + (i * 4) + 1);
+                const uint8 blue = *(frameImage->getPixelData() + (i * 4) + 2);
+                const uint8 alpha = *(frameImage->getPixelData() + (i * 4) + 3);
 
-            if (pixel[3] == 0) {
-                const int x = i % width;
-                const int y = i / width;
-                maskPixels[(y * maskStride) + (x / 8)] |= 0x80 >> (x % 8);
+                cursorPixels[(i * 4) + 0] = blue;
+                cursorPixels[(i * 4) + 1] = green;
+                cursorPixels[(i * 4) + 2] = red;
+                cursorPixels[(i * 4) + 3] = alpha;
+
+                if (alpha == 0) {
+                    const int x = i % width;
+                    const int y = i / width;
+                    maskPixels[(y * maskStride) + (x / 8)] |= 0x80 >> (x % 8);
+                }
             }
         }
 
-        HBITMAP colorBitmap = CreateBitmap(width, height, 1, 32, &cursorPixels[0]);
-        HBITMAP maskBitmap = CreateBitmap(width, height, 1, 1, &maskPixels[0]);
-        if (!colorBitmap || !maskBitmap) {
+        HBITMAP maskBitmap = CreateBitmap(width, height, 1, 1, maskPixels.data());
+        if (!colorBitmap || !colorBits || !maskBitmap) {
             if (colorBitmap)
                 DeleteObject(colorBitmap);
             if (maskBitmap)
@@ -1043,13 +1097,8 @@ void WIN32Window::setMouseCursor(int cursorId)
         if (cursorId >= (int)m_cursors.size() || cursorId < 0)
             return;
 
-        if (m_currentCursorId == cursorId) {
-            if (m_cursor) {
-                SetCursor(m_cursor);
-                ShowCursor(true);
-            }
+        if (m_currentCursorId == cursorId)
             return;
-        }
 
         m_currentCursorId = cursorId;
         m_cursorFrame = 0;

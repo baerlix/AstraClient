@@ -398,7 +398,7 @@ local widgets = {
     },
     [34] = {
         icon = "/images/game/emblems/emblem_green",
-        path = "/images/arcs/conditions/player-state-guildwar-flag",
+        path = "/images/game/emblems/emblem_green",
         name = "in guild war",
         id = "emblem",
         visibleHud = false,
@@ -736,6 +736,7 @@ function ConditionsHUD:changeVisibilityInHud(id, visible)
     end
 
     condition:setVisibleHud(visible)
+    ConditionsHUD.settings.visibleHud[id] = visible
     -- notifier
     if visible and ConditionsHUD.actives[condition:getId()] then
         -- if condition is active, add it to the hud
@@ -775,6 +776,7 @@ function ConditionsHUD:changeVisibilityInBar(id, visible)
     end
 
     condition:setVisibleBar(visible)
+    ConditionsHUD.settings.visibleBar[id] = visible
     local removeNormalBattle = false
     -- notifier
     if visible and ConditionsHUD.actives[condition:getId()] then

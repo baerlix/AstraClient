@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.16)
+cmake_policy(VERSION 3.16)
 project(AstraClient)
 
 if(CMAKE_BASE_NAME STREQUAL "em++")
@@ -20,8 +21,8 @@ option(FRAMEWORK_NET "Use NET " ON)
 include(src/framework/CMakeLists.txt)
 include(src/client/CMakeLists.txt)
 
-# functions map for reading backtraces
-if(NOT APPLE AND NOT WASM)
+# functions map for reading backtraces (flags do linker GNU; nao aplicar no MSVC)
+if(NOT APPLE AND NOT WASM AND NOT MSVC)
     set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} -no-pie -Wl,-Map=${PROJECT_NAME}.map")
 endif()
 
@@ -31,12 +32,18 @@ set(executable_SOURCES
 
 # add executable icon for win32 platforms
 if(WIN32)
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/otcicon.o
-                       COMMAND ${CMAKE_RC_COMPILER}
-                       -I${CMAKE_CURRENT_SOURCE_DIR}/src
-                       -i${CMAKE_CURRENT_SOURCE_DIR}/src/otcicon.rc
-                       -o ${CMAKE_CURRENT_BINARY_DIR}/otcicon.o)
-    set(executable_SOURCES ${executable_SOURCES} otcicon.o)
+    if(MSVC)
+        # MSVC: o CMake compila o .rc direto com rc.exe (windres nao existe aqui)
+        set(executable_SOURCES ${executable_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/src/otcicon.rc)
+    else()
+        # MinGW: compila o resource com windres
+        add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/otcicon.o
+                           COMMAND ${CMAKE_RC_COMPILER}
+                           -I${CMAKE_CURRENT_SOURCE_DIR}/src
+                           -i${CMAKE_CURRENT_SOURCE_DIR}/src/otcicon.rc
+                           -o ${CMAKE_CURRENT_BINARY_DIR}/otcicon.o)
+        set(executable_SOURCES ${executable_SOURCES} otcicon.o)
+    endif()
 endif()
 
 if(VERSION)

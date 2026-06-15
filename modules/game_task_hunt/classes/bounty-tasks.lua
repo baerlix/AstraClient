@@ -1,4 +1,6 @@
 TaskBounty = {}
+-- Older servers used this fixed cost and did not include it in bounty packets.
+local LEGACY_PREFERRED_CLEAR_COST = 10
 
 -- Action types (must match BountyActionType on server)
 local ACTION_REROLL = 0
@@ -21,6 +23,13 @@ local TALISMAN_TITLES = {
     [4] = 'Chance for Double\nBeast Scroll Progress',
 }
 
+local TALISMAN_BASE_VALUES = {
+    [1] = 0,
+    [2] = 0,
+    [3] = 0,
+    [4] = 0,
+}
+
 function TaskBounty.formatPercent(value)
     if value == math.floor(value) then
         return string.format('%.1f', value)
@@ -31,8 +40,18 @@ function TaskBounty.formatPercent(value)
     end
 end
 
+function TaskBounty.getTalismanNextValue(index, currentValue)
+    if currentValue <= 0 then
+        return index == 4 and 100 or 250
+    end
+    if index == 4 then
+        return currentValue + (currentValue < 2000 and 100 or 50)
+    end
+    return currentValue + (currentValue < 1500 and 50 or 25)
+end
+
 function TaskBounty.init()
-    -- Data will come from server via onServerData
+    TaskBounty.populateDefaultTalisman()
 end
 
 local ACTION_REQUEST = 4
@@ -41,20 +60,37 @@ function TaskBounty.requestRefresh()
     g_game.bountyTaskAction(ACTION_REQUEST, 0)
 end
 
-function TaskBounty.updateTracker(monsters)
+function TaskBounty.updateTracker(header, monsters)
+    TaskBounty.trackerHeader = header or {}
+    TaskBounty.trackerMonsters = monsters or {}
+
     if not Tracker or not Tracker.Bounty then return end
 
     local activeMonster = nil
-    for _, m in ipairs(monsters) do
+    for _, m in ipairs(TaskBounty.trackerMonsters) do
         if tonumber(m.isActive) == 1 then
             activeMonster = m
             break
         end
     end
 
+    local state = tonumber(TaskBounty.trackerHeader.state) or 0
+    if not activeMonster and (state == 2 or state == 3) then
+        for _, m in ipairs(TaskBounty.trackerMonsters) do
+            if (tonumber(m.raceId) or 0) > 0 then
+                activeMonster = m
+                break
+            end
+        end
+    end
+
     if not activeMonster then
         Tracker.Bounty.setInactive()
         return
+    end
+
+    if Tracker.Prey and Tracker.Prey.ensureVisible then
+        Tracker.Prey.ensureVisible()
     end
 
     local raceId = tonumber(activeMonster.raceId) or 0
@@ -65,21 +101,127 @@ function TaskBounty.updateTracker(monsters)
     Tracker.Bounty.onKillUpdate(raceId, currentKills, totalKills, isCompleted)
 end
 
-function TaskBounty.onServerData(header, monsters, talisman, preferreds)
+function TaskBounty.refreshTracker()
+    if TaskBounty.trackerMonsters then
+        TaskBounty.updateTracker(TaskBounty.trackerHeader, TaskBounty.trackerMonsters)
+    end
+end
+
+function TaskBounty.populateDefaultTalisman()
+    local talisman = {}
+    for i = 1, 4 do
+        local currentValue = TALISMAN_BASE_VALUES[i]
+        talisman[i] = {
+            currentValue = currentValue,
+            nextValue = TaskBounty.getTalismanNextValue(i, currentValue),
+            canUpgrade = 1,
+            upgradeCost = 5,
+        }
+    end
+    TaskBounty.populateTalisman(talisman)
+end
+
+function TaskBounty.populateTalisman(talisman)
+    local talismanWindow = taskHuntWindow and taskHuntWindow:recursiveGetChildById('bountyTalismanWindow')
+    if not talismanWindow then return end
+
+    for i = 1, 4 do
+        local entry = talismanWindow:recursiveGetChildById('talismanEntry' .. i)
+        if entry and talisman and talisman[i] then
+            local s = talisman[i]
+            local rawCurrentValue = tonumber(s.currentValue) or TALISMAN_BASE_VALUES[i] or 0
+            local currentValue = rawCurrentValue / 100
+            local nextValue = tonumber(s.nextValue)
+            local upgradeCost = tonumber(s.upgradeCost) or 0
+            local canUpgrade = s.canUpgrade == nil and ((nextValue and nextValue > 0) or upgradeCost > 0) or
+                (s.canUpgrade == true or tonumber(s.canUpgrade) == 1)
+            local isMaxed = not canUpgrade
+            if canUpgrade and not nextValue then
+                nextValue = TaskBounty.getTalismanNextValue(i, rawCurrentValue)
+            end
+
+            TaskBounty.populateTalismanEntry(entry, {
+                icon = TALISMAN_ICONS[i],
+                title = TALISMAN_TITLES[i],
+                current = string.format('Current: %s%%', TaskBounty.formatPercent(currentValue)),
+                buttonText = isMaxed and 'MAX' or (nextValue and
+                    string.format('Upgrade to %s %%', TaskBounty.formatPercent(nextValue / 100)) or 'Upgrade'),
+                cost = upgradeCost,
+                statType = i - 1, -- 0-indexed for server
+                isMaxed = isMaxed,
+            })
+        end
+    end
+end
+
+function TaskBounty.onServerData(header, monsters, talisman, preferreds, availableCreatures, removeCost)
     TaskBounty.preferreds = preferreds or {}
+    monsters = monsters or {}
+    talisman = talisman or {}
+    local hasAvailableCreatures = availableCreatures ~= nil
+    availableCreatures = availableCreatures or {}
+
+    if g_things.registerRaceDataFromPacket then
+        for _, monster in ipairs(monsters) do
+            g_things.registerRaceDataFromPacket(monster)
+        end
+        for _, monster in ipairs(availableCreatures) do
+            g_things.registerRaceDataFromPacket(monster)
+        end
+    end
+
+    local preferredSlots = {}
+    local preferredPrices = { 0, 300, 600, 900, 1200 }
+    for i = 1, 5 do
+        local preferred = TaskBounty.preferreds[i] or {}
+        preferredSlots[i] = {
+            slot = i,
+            locked = tonumber(preferred.enabled) == 1 and 0 or 1,
+            preferred = tonumber(preferred.preferredRaceId) or 0,
+            unwanted = tonumber(preferred.unwantedRaceId) or 0,
+            price = preferredPrices[i],
+        }
+    end
+
+    local availableRaceIds = {}
+    for _, monster in ipairs(availableCreatures) do
+        local raceId = tonumber(monster.raceId)
+        if raceId and raceId > 0 then
+            availableRaceIds[#availableRaceIds + 1] = raceId
+        end
+    end
+    if not hasAvailableCreatures then
+        for raceId in pairs(g_things.getMonsterList() or {}) do
+            local numericRaceId = tonumber(raceId)
+            if numericRaceId and numericRaceId > 0 then
+                availableRaceIds[#availableRaceIds + 1] = numericRaceId
+            end
+        end
+    end
+    table.sort(availableRaceIds)
+    BountyPreferred.onServerData(preferredSlots,
+        tonumber(removeCost) or LEGACY_PREFERRED_CLEAR_COST, availableRaceIds)
 
     -- Always update the kill tracker
-    TaskBounty.updateTracker(monsters)
+    TaskBounty.updateTracker(header, monsters)
 
     if not taskHuntWindow then return end
 
     -- Header data
     local rerollPoints = tonumber(header.rerollPoints) or 0
     local claimDaily = tonumber(header.claimDaily) or 0
+
+    local displayMonsters = {}
+    for _, monster in ipairs(monsters) do
+        if (tonumber(monster.raceId) or 0) > 0 then
+            table.insert(displayMonsters, monster)
+        end
+    end
+
     -- Populate monster panels
     local container = taskHuntWindow:recursiveGetChildById('bountyTaskContainer')
     if container then
-        local monsterCount = #monsters
+        local monsterCount = #displayMonsters
 
         if monsterCount == 1 then
             -- Single monster (active task): use center panel (taskPanel2)
@@ -89,8 +231,9 @@ function TaskBounty.onServerData(header, monsters, talisman, preferreds)
             if panel1 then panel1:setVisible(false) end
             if panel3 then panel3:setVisible(false) end
             if panel2 then
-                local m = monsters[1]
+                local m = displayMonsters[1]
                 TaskBounty.populateTaskPanel(panel2, {
+                    taskIndex = tonumber(m.taskIndex) or 0,
                     raceId = tonumber(m.raceId) or 0,
                     currentKills = tonumber(m.currentKills) or 0,
                     totalKills = tonumber(m.totalKills) or 0,
@@ -108,9 +251,10 @@ function TaskBounty.onServerData(header, monsters, talisman, preferreds)
             for i = 1, 3 do
                 local panel = container:recursiveGetChildById('taskPanel' .. i)
                 if panel then
-                    if monsters[i] then
-                        local m = monsters[i]
+                    if displayMonsters[i] then
+                        local m = displayMonsters[i]
                         TaskBounty.populateTaskPanel(panel, {
+                            taskIndex = tonumber(m.taskIndex) or (i - 1),
                             raceId = tonumber(m.raceId) or 0,
                             currentKills = tonumber(m.currentKills) or 0,
                             totalKills = tonumber(m.totalKills) or 0,
@@ -130,32 +274,7 @@ function TaskBounty.onServerData(header, monsters, talisman, preferreds)
         end
     end
 
-    -- Populate talisman entries
-    local talismanWindow = taskHuntWindow:recursiveGetChildById('bountyTalismanWindow')
-    if talismanWindow then
-        for i = 1, 4 do
-            local entry = talismanWindow:recursiveGetChildById('talismanEntry' .. i)
-            if entry and talisman[i] then
-                local s = talisman[i]
-                local currentValue = (tonumber(s.currentValue) or 0) / 100
-                local nextValue = tonumber(s.nextValue)
-                local canUpgrade = tonumber(s.canUpgrade) == 1
-                local upgradeCost = tonumber(s.upgradeCost) or 0
-                local isMaxed = not canUpgrade
-
-                TaskBounty.populateTalismanEntry(entry, {
-                    icon = TALISMAN_ICONS[i],
-                    title = TALISMAN_TITLES[i],
-                    current = string.format('Current: %s%%', TaskBounty.formatPercent(currentValue)),
-                    buttonText = isMaxed and 'MAX' or (nextValue and
-                        string.format('Upgrade to %s %%', TaskBounty.formatPercent(nextValue / 100)) or 'Upgrade'),
-                    cost = upgradeCost,
-                    statType = i - 1, -- 0-indexed for server
-                    isMaxed = isMaxed,
-                })
-            end
-        end
-    end
+    TaskBounty.populateTalisman(talisman)
 
     -- Claim daily
     local claimLabel = taskHuntWindow:recursiveGetChildById('claimDailyLabel')
@@ -197,14 +316,7 @@ function TaskBounty.onServerData(header, monsters, talisman, preferreds)
     local boostKillsBtn = taskHuntWindow:recursiveGetChildById('boostKills')
     if boostKillsBtn then
         boostKillsBtn.onClick = function()
-            modules.game_store.show()
-            scheduleEvent(function()
-                local storeUI = modules.game_store.controllerShop and modules.game_store.controllerShop.ui
-                if storeUI and storeUI.SearchEdit then
-                    storeUI.SearchEdit:setText('Bounty Double Kill Boost')
-                    modules.game_store.search()
-                end
-            end, 500)
+            openTaskHuntStoreSearch('Bounty Double Kill Boost (1H)')
         end
     end
 
@@ -234,8 +346,9 @@ local RARITY_BACKDROPS = {
 }
 
 function TaskBounty.populateTaskPanel(panel, data)
-    local raceId = data.raceId or 0
-    local rarity = data.rarity or 0
+    local taskIndex = tonumber(data.taskIndex) or 0
+    local raceId = tonumber(data.raceId) or 0
+    local rarity = tonumber(data.rarity) or 0
 
     -- Backdrop image and size based on rarity
     local backdrop = panel:recursiveGetChildById('backdrop')
@@ -320,7 +433,7 @@ function TaskBounty.populateTaskPanel(panel, data)
             selectBtn:setText('Select Task')
             selectBtn:setEnabled(true)
             selectBtn.onClick = function()
-                TaskBounty.selectTask(raceId)
+                TaskBounty.selectTask(taskIndex)
             end
         end
     end
@@ -360,9 +473,27 @@ function TaskBounty.populateTalismanEntry(entry, data)
 end
 
 function TaskBounty.onKillUpdate(raceId, currentKills, totalKills, isCompleted)
+    raceId = tonumber(raceId) or 0
+    currentKills = tonumber(currentKills) or 0
+    totalKills = tonumber(totalKills) or 0
+    isCompleted = isCompleted == true or tonumber(isCompleted) == 1
+
+    for _, monster in ipairs(TaskBounty.trackerMonsters or {}) do
+        if tonumber(monster.raceId) == raceId then
+            monster.currentKills = currentKills
+            monster.totalKills = totalKills
+            monster.isActive = 1
+            monster.isCompleted = isCompleted and 1 or 0
+            monster.claimState = isCompleted and 2 or 1
+            TaskBounty.trackerHeader = TaskBounty.trackerHeader or {}
+            TaskBounty.trackerHeader.state = isCompleted and 3 or 2
+            break
+        end
+    end
+
     -- Update kill tracker
     if Tracker and Tracker.Bounty then
-        Tracker.Bounty.onKillUpdate(raceId, currentKills, totalKills, isCompleted)
+        Tracker.Bounty.onKillUpdate(raceId, currentKills, totalKills, isCompleted and 1 or 0)
     end
 
     -- Update bounty task panel kills label (if open)
@@ -378,7 +509,7 @@ function TaskBounty.onKillUpdate(raceId, currentKills, totalKills, isCompleted)
                     end
 
                     local selectBtn = panel:recursiveGetChildById('selectTaskButton')
-                    if selectBtn and isCompleted == 1 then
+                    if selectBtn and isCompleted then
                         selectBtn:setText('Claim Reward')
                         selectBtn:setEnabled(true)
                         selectBtn.onClick = function()
@@ -396,8 +527,8 @@ function TaskBounty.rerollMonsters()
     g_game.bountyTaskAction(ACTION_REROLL, 0)
 end
 
-function TaskBounty.selectTask(raceId)
-    g_game.bountyTaskAction(ACTION_SELECT, raceId)
+function TaskBounty.selectTask(taskIndex)
+    g_game.bountyTaskAction(ACTION_SELECT, taskIndex)
 end
 
 function TaskBounty.claimReward(raceId)
@@ -405,7 +536,7 @@ function TaskBounty.claimReward(raceId)
 end
 
 function TaskBounty.changeDifficulty(difficultyId)
-    g_game.bountyTaskAction(ACTION_CHANGE_DIFFICULTY, difficultyId)
+    g_game.bountyTaskAction(ACTION_CHANGE_DIFFICULTY, (tonumber(difficultyId) or 1) - 1)
 end
 
 function TaskBounty.claimDaily()

@@ -158,8 +158,10 @@ set(framework_SOURCES ${framework_SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/platform/platform.h
 )
 
-set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/luafunctions.cpp
-                            PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-g0 -Os")
+if(NOT MSVC)
+    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/luafunctions.cpp
+                                PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-g0 -Os")
+endif()
 
 # some build options
 option(LUAJIT "Use lua jit" ON)
@@ -202,6 +204,11 @@ if(WASM)
     set_source_files_properties(${LUA_SRC} PROPERTIES LANGUAGE CXX )
     set(framework_SOURCES ${framework_SOURCES} ${LUA_SRC})
     message(STATUS "LUA: " ${LUA_SRC})
+elseif(MSVC)
+    # MSVC: defaults do CMake (/EHsc /GR /O2 ...); /bigobj p/ arquivos grandes (luafunctions.cpp)
+    # /FIiso646.h: habilita os operadores alternativos (and/or/not) que o codigo usa
+    set(CMAKE_CXX_FLAGS                   "${CMAKE_CXX_FLAGS} /bigobj /FIiso646.h")
+    set(CMAKE_CXX_FLAGS_RELEASE           "/O2 /DNDEBUG")
 else()
     set(CMAKE_CXX_FLAGS                   "${CMAKE_CXX_FLAGS} ${WARNS_FLAGS} ${ARCH_FLAGS} -pipe")
     set(CMAKE_CXX_FLAGS_COMPILESPEED      "-O0")
@@ -222,11 +229,16 @@ endif()
 
 # process options
 if(USE_STATIC_LIBS)
-        if(NOT APPLE)
+        if(NOT APPLE AND NOT MSVC)
             set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} -static-libgcc -static-libstdc++")
         endif()
         message(STATUS "Link to static libraries: ON")
-        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+        if(MSVC)
+            # No MSVC as libs do vcpkg sao .lib (nao .a) -> sem isso os find_library quebram
+            set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".a")
+        else()
+            set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+        endif()
 else()
         message(STATUS "Link to static libraries: OFF")
 endif()
@@ -284,7 +296,11 @@ if(NOT WASM)
     )
 
     if(WIN32)
-        set(framework_LIBRARIES ${framework_LIBRARIES} -lbcrypt -ldbghelp -lshlwapi -liphlpapi -lpsapi)
+        if(MSVC)
+            set(framework_LIBRARIES ${framework_LIBRARIES} bcrypt dbghelp shlwapi iphlpapi psapi winmm)
+        else()
+            set(framework_LIBRARIES ${framework_LIBRARIES} -lbcrypt -ldbghelp -lshlwapi -liphlpapi -lpsapi -lwinmm)
+        endif()
     endif()
 
     set(framework_INCLUDE_DIRS ${framework_INCLUDE_DIRS}
@@ -329,8 +345,10 @@ if(USE_LIBCPP)
 endif()
 
 if(WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthreads")
-    set(framework_DEFINITIONS ${framework_DEFINITIONS} -D_WIN32_WINNT=0x0501 -DWIN32)
+    if(NOT MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthreads")
+    endif()
+    set(framework_DEFINITIONS ${framework_DEFINITIONS} -D_WIN32_WINNT=0x0501 -DWIN32 -DNOMINMAX)
     #set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} -Wl,--large-address-aware") # strip all debug information
     set(SYSTEM_LIBRARIES "")
 else()

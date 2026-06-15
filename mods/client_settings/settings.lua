@@ -56,6 +56,9 @@ local extraOptions = {}
 
 -- antes do apply
 local tmpResetActions = {}
+local autoApplyEvent = nil
+local applyingOptions = false
+local pendingInterfaceRefreshEvents = {}
 
 local globalGeneralHotkey = {}
 local actionBarHotkey = {}
@@ -149,6 +152,21 @@ function init()
 
   addEvent(function() setup() end)
 
+  ProtocolGame.registerExtendedOpcode(0x8C, function(protocol, opcode, buffer)
+    if #buffer >= 8 then
+      local lo = string.byte(buffer, 1) + string.byte(buffer, 2) * 256 +
+                string.byte(buffer, 3) * 65536 + string.byte(buffer, 4) * 16777216
+      local hi = string.byte(buffer, 5) + string.byte(buffer, 6) * 256 +
+                string.byte(buffer, 7) * 65536 + string.byte(buffer, 8) * 16777216
+      local highStates = lo + hi * 4294967296
+      local player = g_game.getLocalPlayer()
+      if player and highStates ~= 0 then
+        local combined = player:getStates() + highStates
+        ConditionsHUD:notifierStatesChange(player, combined, 0, nil, {})
+      end
+    end
+  end)
+
   connect(g_game,
           { onGameStart = online,
             onGameEnd = offline,
@@ -183,6 +201,7 @@ function terminate()
             )
 
   disconnect(LocalPlayer, { onTakeScreenshot = onScreenShot})
+  ProtocolGame.unregisterExtendedOpcode(0x8C)
   disconnect(LocalPlayer, { onStatesChange = onStatesChange,
                         onTaintsChange = onTaintsChange,
                          onSoulChange = onSoulChange,
@@ -242,10 +261,82 @@ function terminate()
   loadedWindows = {}
 end
 
+function setHealthCircleModules(value)
+  local gameMapPanel = m_interface and m_interface.getMapPanel and m_interface.getMapPanel()
+  if gameMapPanel and gameMapPanel.setShowArcs then
+    gameMapPanel:setShowArcs(false)
+  end
+
+  if modules.game_healthcircle then
+    if modules.game_healthcircle.handleShowArc then
+      modules.game_healthcircle.handleShowArc(value)
+    else
+      if modules.game_healthcircle.setHealthCircle then
+        modules.game_healthcircle.setHealthCircle(value)
+      end
+      if modules.game_healthcircle.setManaCircle then
+        modules.game_healthcircle.setManaCircle(value)
+      end
+    end
+  end
+end
+
+local function refreshOnlineInterfaceOptions()
+  if not g_game.isOnline() then
+    return
+  end
+
+  setHealthCircleModules(getOption("showHealthManaCircle"))
+
+  if modules.game_topbar then
+    if modules.game_topbar.reloadFromSettings then
+      modules.game_topbar.reloadFromSettings(getOption("customisableBars"))
+    elseif modules.game_topbar.toggle then
+      modules.game_topbar.toggle(getOption("customisableBars"))
+    end
+  end
+end
+
+local function scheduleOnlineInterfaceOptionsRefresh()
+  for _, event in ipairs(pendingInterfaceRefreshEvents) do
+    removeEvent(event)
+  end
+  pendingInterfaceRefreshEvents = {}
+
+  -- Retry through the login/layout settle window because interface modules finish at different ticks.
+  local delays = {50, 250, 750, 1500, 3000}
+  for index, delay in ipairs(delays) do
+    pendingInterfaceRefreshEvents[#pendingInterfaceRefreshEvents + 1] = scheduleEvent(function()
+      refreshOnlineInterfaceOptions()
+      if index == #delays then
+        pendingInterfaceRefreshEvents = {}
+      end
+    end, delay)
+  end
+end
+
 function online()
   local benchmark = g_clock.millis()
   tmpResetActions = {}
-  g_app.setSmooth(GameOptions:getOption("antialiasing") == 2)
+  local gameMapPanel = m_interface and m_interface.getMapPanel()
+  if gameMapPanel then
+    gameMapPanel:setAntiAliasingMode(GameOptions:getOption("antialiasing"))
+  else
+    local retryEvent
+    local retries = 0
+    retryEvent = cycleEvent(function()
+      local panel = m_interface and m_interface.getMapPanel()
+      if panel then
+        panel:setAntiAliasingMode(GameOptions:getOption("antialiasing"))
+        retryEvent:cancel()
+      else
+        retries = retries + 1
+        if retries >= 10 then
+          retryEvent:cancel()
+        end
+      end
+    end, 500)
+  end
 
   if Options.getAutoSwtichPreset() then
     autoSwitchHotkey()
@@ -257,6 +348,7 @@ function online()
 
   ActionHotkey.configureActionBarHotkeys()
   ConditionsHUD:onGameStart()
+  scheduleOnlineInterfaceOptionsRefresh()
   consoleln("Settings loaded in " .. (g_clock.millis() - benchmark) / 1000 .. " seconds.")
 end
 
@@ -297,7 +389,7 @@ function toggleDisplays()
       gameMapPanel:setDrawHarmonyBar(true)
     end
     if getOption("showHealthManaCircle") then
-      gameMapPanel:setShowArcs(true)
+      setHealthCircleModules(true)
     end
   elseif displayState == 1 then
     -- Ocultar own
@@ -305,7 +397,8 @@ function toggleDisplays()
     gameMapPanel:setDrawOwnHealth(false)
     gameMapPanel:setDrawOwnManaBar(false)
     gameMapPanel:setDrawOwnManaShieldBar(false)
-    gameMapPanel:setShowArcs(false)
+    gameMapPanel:setDrawPlayerBars(false)
+    setHealthCircleModules(false)
   elseif displayState == 2 then
     -- Ocultar others e mostrar own
     gameMapPanel:setDrawNames(false)
@@ -320,7 +413,7 @@ function toggleDisplays()
       gameMapPanel:setDrawOwnManaShieldBar(true)
     end
     if getOption("showHealthManaCircle") then
-      gameMapPanel:setShowArcs(true)
+      setHealthCircleModules(true)
     end
   elseif displayState == 3 then
     -- Ocultar tudo
@@ -336,14 +429,13 @@ function toggleDisplays()
       gameMapPanel:setDrawOwnManaShieldBar(false)
     end
     if getOption("showHealthManaCircle") then
-      gameMapPanel:setShowArcs(false)
+      setHealthCircleModules(false)
     end
   end
 end
 
 function toggleHotkeys()
-  m_settings:openOptions()
-  onClickOptionButton(loadedButton["controls"], "customHotkeys")
+  m_settings:openOptions("customHotkeys")
 end
 
 function toggleShortcuts()
@@ -364,6 +456,10 @@ function onSelectionChange(widget, selectedWidget)
 end
 
 function closeOptions()
+  if TempOptions:hasOptions() then
+    onApplyOptions(nil, true)
+  end
+
   optionsWindow:hide()
   g_client.setInputLockWidget(nil)
   TempOptions:resetAllOptions()
@@ -373,11 +469,11 @@ function closeOptions()
   KeyBinds:setupAndReset(Options.currentHotkeySetName, (Options.isChatOnEnabled and "chatOn" or "chatOff"))
 end
 
-function openOptions()
+function openOptions(self, redirectId)
   optionsWindow:show(true)
   optionsWindow:focus()
   g_client.setInputLockWidget(optionsWindow)
-  onClickOptionButton(loadedButton["controls"])
+  onClickOptionButton(loadedButton["controls"], redirectId)
 end
 
 function setup()
@@ -425,7 +521,9 @@ function onClickOptionButton(widget, redirectId)
 
   widget.button:setOn(true)
   selectedWindow = loadedWindows[widget:getId()]
-  selectedWindow:show(true)
+  if not redirectId then
+    selectedWindow:show(true)
+  end
 
   if selectedWindow.children then
     selectedButton:setHeight(20 * (#selectedWindow.children + 1))
@@ -442,9 +540,7 @@ function onClickOptionButton(widget, redirectId)
         end
 
         if redirectId and redirectId == option.id then
-          scheduleEvent(function()
-            onClickChildOptionButton(widget)
-          end, 100)
+          onClickChildOptionButton(widget)
         end
       end
     end
@@ -519,6 +615,11 @@ function onApplyOptions(var, isFromOk)
     isFromOk = false
   end
 
+  if applyingOptions then
+    return
+  end
+
+  applyingOptions = true
   TempOptions:applyOptions()
 
   for slot, _ in pairs(tmpResetActions) do
@@ -529,10 +630,13 @@ function onApplyOptions(var, isFromOk)
   setupProfile()
   checkRotateOptions(isFromOk)
   onApplyControlButtons()
+  applyingOptions = false
 end
 
 function setupOkButton()
-  onApplyOptions(nil, true)
+  if TempOptions:hasOptions() then
+    onApplyOptions(nil, true)
+  end
   setHotkeyChatMode()
   closeOptions()
 end
@@ -584,6 +688,22 @@ end
 
 function setTempOption(key, value)
   TempOptions:setOption(key, value)
+
+  if applyingOptions then
+    return
+  end
+
+  if autoApplyEvent then
+    removeEvent(autoApplyEvent)
+    autoApplyEvent = nil
+  end
+
+  autoApplyEvent = scheduleEvent(function()
+    autoApplyEvent = nil
+    if TempOptions:hasOptions() then
+      onApplyOptions()
+    end
+  end, 1)
 end
 -- options
 
@@ -1966,11 +2086,15 @@ function resetControls()
   optionsWindow:hide()
   g_client.setInputLockWidget(nil)
   local yesFunction = function()
-    setTempOption('hotkeyDelayNative', true)
-    setTempOption('hotkeyDelay', 80)
-    setTempOption('walkTurnDelay', 100)
-    setTempOption('walkTeleportDelay', 200)
-    setTempOption('walkStairsDelay', 50)
+    setTempOption('hotkeyDelayNative', false)
+    setTempOption('hotkeyDelay', 50)
+    setTempOption('walkTurnDelay', 0)
+    setTempOption('walkTeleportDelay', 0)
+    setTempOption('walkStairsDelay', 0)
+    setTempOption('walkFirstStepDelay', 50)
+    setTempOption('walkCtrlTurnDelay', 0)
+    setTempOption('dash', false)
+    setTempOption('smartWalk', false)
     setTempOption('ctrlCheckBox', true)
     setTempOption('shiftCheckBox', false)
     setTempOption('altCheckBox', false)
@@ -2198,9 +2322,10 @@ function resetGraphics()
     setTempOption('hdmodeBox', true)
     setTempOption('fullscreen', false)
     setTempOption('dontStretchShrink', false)
+    setTempOption('cacheUI', false)
     setTempOption('vsync', false)
     setTempOption('noFrameCheckBox', false)
-    setTempOption('backgroundFrameRate', 60)
+    setTempOption('backgroundFrameRate', 100)
     onApplyOptions()
     optionsWindow:show(true)
     g_client.setInputLockWidget(optionsWindow)
@@ -2229,7 +2354,7 @@ function resetEffects()
   g_client.setInputLockWidget(nil)
   local yesFunction = function()
     setTempOption('enableLights', true)
-    setTempOption('ambientLight', 100)
+    setTempOption('ambientLight', 40)
     setTempOption('stackEffects', false)
     setTempOption('maxEffects', true)
     setTempOption('limitEffects', 400)

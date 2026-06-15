@@ -23,16 +23,15 @@ UIWindow
   background-color: #0f0f1a
   opacity: 0.95
   border-radius: 6
-  image-source: terminal/pumpkinbg
   padding: 6
   anchors.fill: parent
   clipping: true
   $on:
-    border: 1 #ff8800cc
+    border: 1 #13d644cc
 
   Label
     id: titleBar
-    !text: tr('PumpkinBot Terminal')
+    !text: tr('Terminal')
     border: 1 black
     color: white
     anchors.top: parent.top
