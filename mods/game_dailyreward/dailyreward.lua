@@ -62,6 +62,10 @@ function terminate()
 end
 
 function closeSelectReward()
+  if not selectRewardWindow then
+    return
+  end
+
   g_client.setInputLockWidget(nil)
   selectRewardWindow:destroy()
   selectRewardWindow = nil
@@ -337,12 +341,7 @@ function onClaimReward(widget)
     setStringColor(m, string.format(" of %d reward items.", reward.amount), "#C0C0C0")
     selectRewardWindow.selectLabel:setColoredText(m)
 
-    selectRewardWindow.closeButton.onClick = function()
-      g_client.setInputLockWidget(nil)
-      selectRewardWindow:destroy()
-      dailyRewardWindow:show(true)
-      g_client.setInputLockWidget(dailyRewardWindow)
-    end
+    selectRewardWindow.closeButton.onClick = closeSelectReward
   else
     onClickConfirm(widget)
   end
