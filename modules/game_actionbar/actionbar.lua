@@ -908,7 +908,6 @@ function updateButton(button)
 
 	setupHotkeyButton(button)
 	if button.cache.hotkey then
-		button.item.text:setTextOffset("0 8")
 		button.hotkeyLabel:setText(translateDisplayHotkey(button.cache.hotkey))
 	end
 
@@ -956,9 +955,16 @@ function updateButton(button)
 	end
 
 	if sendText then
-		local spellData, param = Spells.getSpellDataByParamWords(sendText:lower())
-		if spellData then
-			local spellId = SpellIcons[spellData.icon][1]
+		local displayText = sendText
+		local normalizedText = sendText:lower()
+		if normalizedText == "exori san infir" then
+			normalizedText = "exori infir con"
+		end
+
+		local spellData, param = Spells.getSpellDataByParamWords(normalizedText)
+		local spellIcon = spellData and SpellIcons[spellData.icon]
+		if spellData and spellIcon then
+			local spellId = spellIcon[1]
 			local source = SpelllistSettings['Default'].iconsFolder
 			local clip = Spells.getImageClipNormal(spellId, 'Default')
 
@@ -981,7 +987,13 @@ function updateButton(button)
 
       		checkRemainSpellCooldown(button, spellData.id)
 		else
-			button.item.text:setText(short_text(sendText, 15))
+			if button.cache.hotkey then
+				displayText = displayText:match("^(%S+)") or displayText
+				button.item.text:setTextOffset("0 10")
+				button.item.text:setText(short_text(displayText, 6))
+			else
+				button.item.text:setText(short_text(displayText, 15))
+			end
 		end
 
 		button.item:setOn(true)

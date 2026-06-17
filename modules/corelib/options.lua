@@ -333,7 +333,11 @@ end
 function Options.changeHotkeyProfile(newProfile)
 	Options.validateHotkeySet()
     if not Options.array or not Options.array["hotkeyOptions"] or not Options.array["hotkeyOptions"]["hotkeySets"] then
-        return
+        return false
+    end
+
+    if not newProfile or not Options.array["hotkeyOptions"]["hotkeySets"][newProfile] then
+        return false
     end
 
     Options.array["hotkeyOptions"]["currentHotkeySetName"] = newProfile
@@ -346,10 +350,12 @@ function Options.changeHotkeyProfile(newProfile)
 
     Options.actionBarOptions = Options.currentHotkeySet["actionBarOptions"]
     if not Options.actionBarOptions then
-        return
+        return false
     end
 
     Options.actionBarMappings = Options.actionBarOptions["mappings"]
+    Options.saveData()
+    return true
 end
 
 function Options.profileExist(name)

@@ -602,7 +602,7 @@ function onClickChildOptionButton(widget)
 
     local profile = selectedWindow:recursiveGetChildById('profile')
     onSetupProfile(profile)
-    profile:setCurrentOption(Options.currentHotkeySetName)
+    profile:setCurrentOption(Options.currentHotkeySetName, true)
     selectedWindow:recursiveGetChildById('autoSwitchHotkey'):setChecked(Options.getAutoSwtichPreset())
 
     if widget:getId() == 'actionsHotkeys' then
@@ -1337,12 +1337,13 @@ function autoSwitchHotkey()
     return
   end
 
-  Options.changeHotkeyProfile(hotkeySetName)
-  modules.game_actionbar.resetActionBar()
+  if not changeActiveHotkeyProfile(hotkeySetName) then
+    return
+  end
 
   local generalHotkey = loadedWindows["generalHotkeys"]
   local profileBar = generalHotkey:recursiveGetChildById("profile")
-  profileBar:setCurrentOptionLower(LoadedPlayer:getName())
+  profileBar:setCurrentOptionLower(LoadedPlayer:getName(), true)
 end
 
 function onSetupProfile(widget)
@@ -1352,29 +1353,64 @@ function onSetupProfile(widget)
   end
 end
 
-function onChangeProfile(selected)
-  local generalHotkey = loadedWindows["generalHotkeys"]
-    if not generalHotkey then
-    return
+function refreshHotkeyProfileCombos(profileName)
+  local windows = { "generalHotkeys", "actionsHotkeys", "customHotkeys" }
+  for _, windowId in pairs(windows) do
+    local window = loadedWindows[windowId]
+    local profile = window and window:recursiveGetChildById("profile")
+    if profile then
+      onSetupProfile(profile)
+      profile:setCurrentOption(profileName, true)
+    end
+  end
+end
+
+function getSelectedHotkeyChatType()
+  local window = selectedWindow
+  if not window or not (window:getId() == "generalHotkeys" or window:getId() == "actionsHotkeys" or window:getId() == "customHotkeys") then
+    window = loadedWindows["generalHotkeys"]
   end
 
-  local chatOn = generalHotkey:recursiveGetChildById("chatOnCheckBox"):isChecked()
-  local chatOff = generalHotkey:recursiveGetChildById("chatOffCheckBox"):isChecked()
-  if not chatOn and not chatOff then
-    chatOn = Options.isChatOnEnabled
+  local chatOn = window and window:recursiveGetChildById("chatOnCheckBox")
+  local chatOff = window and window:recursiveGetChildById("chatOffCheckBox")
+  if chatOn and chatOn:isChecked() then
+    return "chatOn"
   end
-  if chatOn then
-    KeyBinds:setupAndReset(selected, "chatOn")
-  else
-    KeyBinds:setupAndReset(selected, "chatOff")
+  if chatOff and chatOff:isChecked() then
+    return "chatOff"
   end
+  return Options.isChatOnEnabled and "chatOn" or "chatOff"
+end
+
+function changeActiveHotkeyProfile(profileName, syncCombos)
+  if not Options.changeHotkeyProfile(profileName) then
+    return false
+  end
+
+  if syncCombos ~= false then
+    refreshHotkeyProfileCombos(profileName)
+  end
+
+  if lastFocusHK then
+    if lastFocusHK.firstKey and lastFocusHK.firstKey.actionEdit then
+      lastFocusHK.firstKey.actionEdit:setVisible(false)
+    end
+    if lastFocusHK.lastColor then
+      lastFocusHK:setBackgroundColor(lastFocusHK.lastColor)
+    end
+    lastFocusHK = nil
+  end
+
+  modules.game_actionbar.resetActionBar()
+  KeyBinds:setupAndReset(Options.currentHotkeySetName, getSelectedHotkeyChatType())
   configureGeneralHotkeys("")
-
-  lastFocusHK = nil
-  local actionbarHotkey = loadedWindows["actionsHotkeys"]
-  local customHotkey = loadedWindows["customHotkeys"]
   ActionHotkey.configureActionBarHotkeys()
-  CustomHotkeys.createList()
+  CustomHotkeys.createList(true)
+  return true
+end
+
+function onChangeProfile(selected)
+  changeActiveHotkeyProfile(selected, false)
 end
 
 function onChatOnCheck(action)
@@ -1436,9 +1472,7 @@ function setupProfile()
     return
   end
 
-  Options.changeHotkeyProfile(selectedProfile.text)
-  modules.game_actionbar.resetActionBar()
-  CustomHotkeys.createList(true)
+  changeActiveHotkeyProfile(selectedProfile.text)
 end
 
 function toggleNextPreset()
@@ -1455,16 +1489,9 @@ function toggleNextPreset()
   end
 
   local newProfile = Options.profiles[currentIndex + 1]
-  Options.changeHotkeyProfile(newProfile)
-  modules.game_actionbar.resetActionBar()
-
-  local chatOn = Options.isChatOnEnabled
-  if chatOn then
-    KeyBinds:setupAndReset(Options.currentHotkeySetName, "chatOn")
-  else
-    KeyBinds:setupAndReset(Options.currentHotkeySetName, "chatOff")
+  if not changeActiveHotkeyProfile(newProfile) then
+    return
   end
-  CustomHotkeys.createList(true)
   modules.game_textmessage.displayFailureMessage(tr("Switched to hotkey preset '%s'", newProfile))
 end
 
@@ -1482,16 +1509,9 @@ function togglePreviousPreset()
   end
 
   local newProfile = Options.profiles[currentIndex - 1]
-  Options.changeHotkeyProfile(newProfile)
-  modules.game_actionbar.resetActionBar()
-
-  local chatOn = Options.isChatOnEnabled
-  if chatOn then
-    KeyBinds:setupAndReset(Options.currentHotkeySetName, "chatOn")
-  else
-    KeyBinds:setupAndReset(Options.currentHotkeySetName, "chatOff")
+  if not changeActiveHotkeyProfile(newProfile) then
+    return
   end
-  CustomHotkeys.createList(true)
   modules.game_textmessage.displayFailureMessage(tr("Switched to hotkey preset '%s'", newProfile))
 end
 
@@ -1511,23 +1531,8 @@ function onCreateProfile(windowType)
 
     Options.createProfile(text)
 
-    local generalHotkey = nil
-    if windowType == "General" then
-      generalHotkey = loadedWindows["generalHotkeys"]
-      onSetupProfile(generalHotkey:recursiveGetChildById("profile"))
-    elseif windowType == "ActionBar" then
-      generalHotkey = loadedWindows["actionsHotkeys"]
-      onSetupProfile(generalHotkey:recursiveGetChildById("profile"))
-    elseif windowType == "CustomHotkey" then
-      generalHotkey = loadedWindows["customHotkeys"]
-      onSetupProfile(generalHotkey:recursiveGetChildById("profile"))
-    end
-
-    local profileBar = generalHotkey:recursiveGetChildById("profile")
-    profileBar:setCurrentOption(text)
-    if windowType == "CustomHotkey" then
-      CustomHotkeys.createList()
-    end
+    refreshHotkeyProfileCombos(text)
+    changeActiveHotkeyProfile(text, false)
 
     g_client.setInputLockWidget(nil)
     presetWindow:destroy()
@@ -1585,10 +1590,8 @@ function onCopyProfile(windowType)
     end
 
     Options.copyProfile(text, profileBar:getCurrentOption().text)
-    profileBar:addOption(text)
-    profileBar:setCurrentOption(text)
-    onChangeProfile(text)
-    setupProfile()
+    refreshHotkeyProfileCombos(text)
+    changeActiveHotkeyProfile(text, false)
 
     g_client.setInputLockWidget(nil)
     presetWindow:destroy()
@@ -1649,8 +1652,8 @@ function onRenameProfile(windowType)
     end
 
     Options.renamePreset(text, profileBar:getCurrentOption().text)
-    profileBar:changeOption(profileBar:getCurrentOption().text, text)
-    profileBar:setCurrentOption(text)
+    refreshHotkeyProfileCombos(text)
+    changeActiveHotkeyProfile(text, false)
 
     g_client.setInputLockWidget(nil)
     presetWindow:destroy()
@@ -1706,13 +1709,9 @@ function onRemoveProfile(windowType)
 
   local yesFunction = function()
     Options.removeProfile(currentProfile)
-    profileBar:removeOption(currentProfile)
-    profileBar:setCurrentIndex(1)
-    setupProfile()
-
-    if windowType == "CustomHotkey" then
-      CustomHotkeys.createList()
-    end
+    local nextProfile = Options.profiles[1]
+    refreshHotkeyProfileCombos(nextProfile)
+    changeActiveHotkeyProfile(nextProfile, false)
 
     optionsWindow:show(true)
     g_client.setInputLockWidget(optionsWindow)
