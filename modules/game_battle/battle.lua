@@ -34,6 +34,11 @@ function init()
   g_ui.importStyle('battlebutton')
   g_ui.importStyle('battle')
 
+  connect(g_game, {
+    onAttackingCreatureChange = onTargetStateChange,
+    onFollowingCreatureChange = onTargetStateChange
+  })
+
   keybindOpenBattle:active()
   keybindOpenSecondaryBattle:active()
 
@@ -55,6 +60,11 @@ function init()
 end
 
 function terminate()
+  disconnect(g_game, {
+    onAttackingCreatureChange = onTargetStateChange,
+    onFollowingCreatureChange = onTargetStateChange
+  })
+
   keybindOpenBattle:deactive()
   keybindOpenSecondaryBattle:deactive()
 
@@ -471,6 +481,10 @@ function updateBattleButtons()
   end
 
   updateSquare()
+end
+
+function onTargetStateChange()
+  updateBattleButtons()
 end
 
 function onBattleButtonHoverChange(battleButton, hovered)
