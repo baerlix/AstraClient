@@ -496,16 +496,8 @@ function equip.onItemSelected(self, mousePosition, mouseButton, targetButton, ta
 
   local slotType = ""
 
-  local itemType = g_things.findItemTypeByClientId(itemId)
-  local clothSlot = 0
-  
-  if itemType and itemType.getClothSlot then
-    local ok, res = pcall(function() return itemType:getClothSlot() end)
-    if ok then clothSlot = res end
-  elseif item and item.getClothSlot then
-    local ok, res = pcall(function() return item:getClothSlot() end)
-    if ok then clothSlot = res end
-  end
+  local thingType = g_things.getThingType(itemId, ThingCategoryItem)
+  local clothSlot = thingType and thingType:getClothSlot() or 0
 
   -- Add rings and necklaces
   -- Neclackes with charges or duration only
@@ -550,7 +542,7 @@ function equip.onItemSelected(self, mousePosition, mouseButton, targetButton, ta
     [30343] = "amulet", -- enchanted sleep shawl (equiped)
     [39234] = "amulet", -- enchanted turtle amulet (equiped)
     [22134] = "amulet", -- enchanted werewolf amulet (equiped)
-  
+
 
   -- Rings with charges or duration only
     [3092] = "ring",   -- axe ring
@@ -597,7 +589,6 @@ function equip.onItemSelected(self, mousePosition, mouseButton, targetButton, ta
     [3090] = "ring",   -- time ring (equiped)
   }
 
-  -- 3. Determinación del slot
   local slotFinger = InventorySlotFinger or 9
   local slotNeck = InventorySlotNeck or 2
 
