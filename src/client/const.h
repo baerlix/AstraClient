@@ -44,7 +44,9 @@ namespace Otc
         MIN_STATIC_TEXT_DURATION = 3000,
         MAX_STATIC_TEXT_WIDTH = 200,
         MAX_AUTOWALK_STEPS_RETRY = 10,
-        MAX_AUTOWALK_DIST = 127
+        MAX_AUTOWALK_DIST = 127,
+
+        ITEM_WEAPON_TYPE_QUIVER = 9
     };
 
     enum DepthConst {
@@ -493,7 +495,8 @@ namespace Otc
         GameThingUpgradeClassification = 130,
         GameItemTierByte = 131,
         GameProficiency = 132,
-        GameLoadTibiaAssets = 133,
+        GameAstraCreatureIcons = 133,
+        GameLoadTibiaAssets = GameAstraCreatureIcons,
         GameGroupInMessage = 134,
         GameExevoVisHur = 135,
         GameNewCreatureStacking = 136,
@@ -501,8 +504,11 @@ namespace Otc
         GamePlayerFamiliars = 138,
         GameDisplayItemCharges = 139,
         GamePackedPlayerInventory = 140,
+        GameAstraQuiverCountU16 = 141,
+        GameAstraOutfitStoreMode = 142,
+        GameAstraItemMetadata = 143,
 
-        LastGameFeature = 141
+        LastGameFeature = 144
     };
 
     enum PathFindResult {

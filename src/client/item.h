@@ -97,8 +97,8 @@ public:
     void setObtainFlags(uint32 flags) { m_obtainFlags = flags; }
     void setShader(const std::string& str) { m_shader = str; }
     void setHash(const std::string& hash) { m_hash = hash; }
-    void setDurationTime(uint64 value) { m_durationTime = value; }
-    void setCharges(uint32 value) { m_charges = value; }
+    void setDurationTime(uint64 value) { m_durationTime = value; m_hasDisplayDuration = value > 0; }
+    void setCharges(uint32 value) { m_charges = value; m_hasDisplayCharges = value > 0; }
     void setDurationIsPaused(bool value) {
         m_durationIsPaused = value;
         if (m_durationIsPaused) {
@@ -123,6 +123,8 @@ public:
     std::string getItemHash() { return m_hash; }
     uint64 getDurationTime() { return m_durationTime; }
     uint32 getCharges() { return m_charges; }
+    bool hasDisplayDuration() { return m_hasDisplayDuration; }
+    bool hasDisplayCharges() { return m_hasDisplayCharges; }
     ticks_t getDurationTimePaused() { return m_durationTimePaused; }
     bool isDurationPaused() const { return m_durationIsPaused; }
 
@@ -164,12 +166,21 @@ public:
     bool isQuiver();
     bool isAmmo();
     bool isChargeableByCategory();
+    bool isEquipableByServerType();
+    void setAstraItemMetadata(uint16 slotPosition, uint8 flags);
+    bool hasAstraItemMetadata() { return m_hasAstraItemMetadata; }
+    uint16 getAstraSlotPosition() { return m_astraSlotPosition; }
+    uint8 getAstraItemFlags() { return m_astraItemFlags; }
     int getWeaponType();
     int getClassification() { const int classification = Thing::getClassification(); return classification > 0 ? classification : getWeaponType(); }
+    bool hasWearOut() { return Thing::hasWearOut(); }
+    bool hasClockExpire() { return Thing::hasClockExpire(); }
+    bool hasExpire() { return Thing::hasExpire(); }
+    bool hasExpireStop() { return Thing::hasExpireStop(); }
 
     ItemPtr clone();
-    ItemPtr asItem() { return static_self_cast<Item>(); }
-    bool isItem() { return true; }
+    ItemPtr asItem() override { return static_self_cast<Item>(); }
+    bool isItem() override { return true; }
 
     ItemVector getContainerItems() { return m_containerItems; }
     ItemPtr getContainerItem(int slot) { return m_containerItems[slot]; }
@@ -218,8 +229,13 @@ private:
 
     uint64 m_durationTime;
     uint32 m_charges = 0;
+    uint16 m_astraSlotPosition;
+    uint8 m_astraItemFlags;
     ticks_t m_durationTimePaused;
     bool m_durationIsPaused;
+    bool m_hasDisplayDuration;
+    bool m_hasDisplayCharges;
+    bool m_hasAstraItemMetadata;
 
     stdext::packed_storage<uint16> m_customAttribs;
 };

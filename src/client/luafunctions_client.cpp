@@ -218,6 +218,7 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_game", "forceLogout", &Game::forceLogout, &g_game);
     g_lua.bindSingletonFunction("g_game", "safeLogout", &Game::safeLogout, &g_game);
     g_lua.bindSingletonFunction("g_game", "walk", &Game::walk, &g_game);
+    g_lua.bindSingletonFunction("g_game", "cancelWalkQueue", &Game::cancelWalkQueue, &g_game);
     g_lua.bindSingletonFunction("g_game", "autoWalk", &Game::autoWalk, &g_game);
     g_lua.bindSingletonFunction("g_game", "turn", &Game::turn, &g_game);
     g_lua.bindSingletonFunction("g_game", "stop", &Game::stop, &g_game);
@@ -466,6 +467,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Thing>("isMarked", &Thing::isMarked);
     g_lua.bindClassMemberFunction<Thing>("getMarkedColor", &Thing::getMarkedColor);
     g_lua.bindClassMemberFunction<Thing>("isItem", &Thing::isItem);
+    g_lua.bindClassMemberFunction<Thing>("asItem", &Thing::asItem);
     g_lua.bindClassMemberFunction<Thing>("isMonster", &Thing::isMonster);
     g_lua.bindClassMemberFunction<Thing>("isNpc", &Thing::isNpc);
     g_lua.bindClassMemberFunction<Thing>("isCreature", &Thing::isCreature);
@@ -497,6 +499,11 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Thing>("isUsable", &Thing::isUsable);
     g_lua.bindClassMemberFunction<Thing>("isWrapable", &Thing::isWrapable);
     g_lua.bindClassMemberFunction<Thing>("isUnwrapable", &Thing::isUnwrapable);
+    g_lua.bindClassMemberFunction<Thing>("hasWearOut", &Thing::hasWearOut);
+    g_lua.bindClassMemberFunction<Thing>("hasWearout", &Thing::hasWearOut);
+    g_lua.bindClassMemberFunction<Thing>("hasClockExpire", &Thing::hasClockExpire);
+    g_lua.bindClassMemberFunction<Thing>("hasExpire", &Thing::hasExpire);
+    g_lua.bindClassMemberFunction<Thing>("hasExpireStop", &Thing::hasExpireStop);
     g_lua.bindClassMemberFunction<Thing>("isInStash", &Thing::isInStash);
     g_lua.bindClassMemberFunction<Thing>("isStowable", &Thing::isStowable);
     g_lua.bindClassMemberFunction<Thing>("isPodium", &Thing::isPodium);
@@ -583,6 +590,8 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Creature>("setShield", &Creature::setShield);
     g_lua.bindClassMemberFunction<Creature>("setEmblem", &Creature::setEmblem);
     g_lua.bindClassMemberFunction<Creature>("getType", &Creature::getType);
+    g_lua.bindClassMemberFunction<Creature>("setVocation", &Creature::setVocation);
+    g_lua.bindClassMemberFunction<Creature>("getVocation", &Creature::getVocation);
     g_lua.bindClassMemberFunction<Creature>("getIcon", &Creature::getIcon);
     g_lua.bindClassMemberFunction<Creature>("setOutfit", &Creature::setOutfit);
     g_lua.bindClassMemberFunction<Creature>("getOutfit", &Creature::getOutfit);
@@ -651,6 +660,8 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<ItemType>("getClientId", &ItemType::getClientId);
     g_lua.bindClassMemberFunction<ItemType>("getCategory", &ItemType::getCategory);
     g_lua.bindClassMemberFunction<ItemType>("getWeaponType", &ItemType::getWeaponType);
+    g_lua.bindClassMemberFunction<ItemType>("getSlotPosition", &ItemType::getSlotPosition);
+    g_lua.bindClassMemberFunction<ItemType>("isEquipable", &ItemType::isEquipable);
     g_lua.bindClassMemberFunction<ItemType>("isWritable",  &ItemType::isWritable);
 
     g_lua.registerClass<ThingType>();
@@ -722,6 +733,11 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<ThingType>("isUsable", &ThingType::isUsable);
     g_lua.bindClassMemberFunction<ThingType>("isWrapable", &ThingType::isWrapable);
     g_lua.bindClassMemberFunction<ThingType>("isUnwrapable", &ThingType::isUnwrapable);
+    g_lua.bindClassMemberFunction<ThingType>("hasWearOut", &ThingType::hasWearOut);
+    g_lua.bindClassMemberFunction<ThingType>("hasWearout", &ThingType::hasWearOut);
+    g_lua.bindClassMemberFunction<ThingType>("hasClockExpire", &ThingType::hasClockExpire);
+    g_lua.bindClassMemberFunction<ThingType>("hasExpire", &ThingType::hasExpire);
+    g_lua.bindClassMemberFunction<ThingType>("hasExpireStop", &ThingType::hasExpireStop);
     g_lua.bindClassMemberFunction<ThingType>("isTopEffect", &ThingType::isTopEffect);
     g_lua.bindClassMemberFunction<ThingType>("getSprites", &ThingType::getSprites);
     g_lua.bindClassMemberFunction<ThingType>("hasAttribute", &ThingType::hasAttr);
@@ -780,8 +796,15 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Item>("setObtainFlags", &Item::setObtainFlags);
     g_lua.bindClassMemberFunction<Item>("isAmmo", &Item::isAmmo);
     g_lua.bindClassMemberFunction<Item>("isChargeableByCategory", &Item::isChargeableByCategory);
+    g_lua.bindClassMemberFunction<Item>("isEquipableByServerType", &Item::isEquipableByServerType);
+    g_lua.bindClassMemberFunction<Item>("isEquipable", &Item::isEquipableByServerType);
     g_lua.bindClassMemberFunction<Item>("getWeaponType", &Item::getWeaponType);
     g_lua.bindClassMemberFunction<Item>("getClassification", &Item::getClassification);
+    g_lua.bindClassMemberFunction<Item>("hasWearOut", &Item::hasWearOut);
+    g_lua.bindClassMemberFunction<Item>("hasWearout", &Item::hasWearOut);
+    g_lua.bindClassMemberFunction<Item>("hasClockExpire", &Item::hasClockExpire);
+    g_lua.bindClassMemberFunction<Item>("hasExpire", &Item::hasExpire);
+    g_lua.bindClassMemberFunction<Item>("hasExpireStop", &Item::hasExpireStop);
     g_lua.bindClassMemberFunction<Item>("setShader", &Item::setShader);
     g_lua.bindClassMemberFunction<Item>("getShader", &Item::getShader);
     g_lua.bindClassMemberFunction<Item>("setHash", &Item::setHash);
@@ -889,6 +912,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<LocalPlayer>("getExpBoostRate", &LocalPlayer::getExpBoostRate);
     g_lua.bindClassMemberFunction<LocalPlayer>("getStaminaRate", &LocalPlayer::getStaminaRate);
     g_lua.bindClassMemberFunction<LocalPlayer>("getStoreExpBoostTime", &LocalPlayer::getStoreExpBoostTime);
+    g_lua.bindClassMemberFunction<LocalPlayer>("canBuyExpBoost", &LocalPlayer::canBuyExpBoost);
     g_lua.bindClassMemberFunction<LocalPlayer>("addHUDCondition", &LocalPlayer::addHUDCondition);
     g_lua.bindClassMemberFunction<LocalPlayer>("removeHUDCondition", &LocalPlayer::removeHUDCondition);
     g_lua.bindClassMemberFunction<LocalPlayer>("hasHUDCondition", &LocalPlayer::hasHUDCondition);

@@ -28,6 +28,7 @@
 #include "creature.h"
 #include "creatures.h"
 #include "game.h"
+#include "const.h"
 
 #include <framework/core/resourcemanager.h>
 #include <framework/core/filestream.h>
@@ -39,6 +40,18 @@
 ThingTypeManager g_things;
 
 namespace {
+constexpr uint16 ItemSlotHead = 1 << 0;
+constexpr uint16 ItemSlotNecklace = 1 << 1;
+constexpr uint16 ItemSlotBackpack = 1 << 2;
+constexpr uint16 ItemSlotArmor = 1 << 3;
+constexpr uint16 ItemSlotRight = 1 << 4;
+constexpr uint16 ItemSlotLeft = 1 << 5;
+constexpr uint16 ItemSlotLegs = 1 << 6;
+constexpr uint16 ItemSlotFeet = 1 << 7;
+constexpr uint16 ItemSlotRing = 1 << 8;
+constexpr uint16 ItemSlotAmmo = 1 << 9;
+constexpr uint16 ItemSlotTwoHand = 1 << 10;
+
 int parseWeaponType(std::string value)
 {
     stdext::tolower(value);
@@ -59,8 +72,58 @@ int parseWeaponType(std::string value)
         return 7;
     if(value == "throw" || value == "throwing")
         return 8;
+    if(value == "quiver")
+        return Otc::ITEM_WEAPON_TYPE_QUIVER;
 
     return 0;
+}
+
+uint16 parseSlotPosition(std::string value)
+{
+    stdext::tolower(value);
+
+    if(value == "head")
+        return ItemSlotHead;
+    if(value == "necklace")
+        return ItemSlotNecklace;
+    if(value == "backpack")
+        return ItemSlotBackpack;
+    if(value == "armor" || value == "body")
+        return ItemSlotArmor;
+    if(value == "right-hand")
+        return ItemSlotRight;
+    if(value == "left-hand")
+        return ItemSlotLeft;
+    if(value == "hand" || value == "shield")
+        return ItemSlotRight | ItemSlotLeft;
+    if(value == "legs")
+        return ItemSlotLegs;
+    if(value == "feet")
+        return ItemSlotFeet;
+    if(value == "ring")
+        return ItemSlotRing;
+    if(value == "ammo")
+        return ItemSlotAmmo;
+    if(value == "two-handed")
+        return ItemSlotTwoHand;
+
+    return 0;
+}
+
+bool hasScriptToken(std::string value, const std::string& token)
+{
+    stdext::tolower(value);
+    return value.find(token) != std::string::npos;
+}
+
+void applySlotPosition(const ItemTypePtr& itemType, const std::string& value)
+{
+    if(value.empty())
+        return;
+
+    const uint16 slotPosition = parseSlotPosition(value);
+    if(slotPosition != 0)
+        itemType->setSlotPosition(slotPosition);
 }
 }
 
@@ -355,7 +418,11 @@ void ThingTypeManager::loadXml(const std::string& file)
 
             uint16 id = element->readType<uint16>("id");
             if(id != 0) {
-                std::vector<std::string> s_ids = stdext::split(element->Attribute("id"), ";");
+                std::string idAttr = element->Attribute("id");
+                if(idAttr.empty())
+                    continue;
+
+                std::vector<std::string> s_ids = stdext::split(idAttr, ";");
                 for(const std::string& s : s_ids) {
                     std::vector<int32> ids = stdext::split<int32>(s, "-");
                     if(ids.size() > 1) {
@@ -366,9 +433,14 @@ void ThingTypeManager::loadXml(const std::string& file)
                         parseItemType(atoi(s.c_str()), element);
                 }
             } else {
-                std::vector<int32> begin = stdext::split<int32>(element->Attribute("fromid"), ";");
-                std::vector<int32> end   = stdext::split<int32>(element->Attribute("toid"), ";");
-                if(begin[0] && begin.size() == end.size()) {
+                std::string fromIdAttr = element->Attribute("fromid");
+                std::string toIdAttr = element->Attribute("toid");
+                if(fromIdAttr.empty() || toIdAttr.empty())
+                    continue;
+
+                std::vector<int32> begin = stdext::split<int32>(fromIdAttr, ";");
+                std::vector<int32> end   = stdext::split<int32>(toIdAttr, ";");
+                if(!begin.empty() && begin[0] && begin.size() == end.size()) {
                     size_t size = begin.size();
                     for(size_t i = 0; i < size; ++i)
                         while(begin[i] <= end[i])
@@ -415,8 +487,9 @@ void ThingTypeManager::parseItemType(uint16 serverId, TiXmlElement* elem)
             continue;
 
         stdext::tolower(key);
-        if(key == "description")
+        if(key == "description") {
             itemType->setDesc(attrib->Attribute("value"));
+        }
         else if(key == "weapontype") {
             itemType->setCategory(ItemCategoryWeapon);
             std::string value = attrib->Attribute("value");
@@ -428,6 +501,30 @@ void ThingTypeManager::parseItemType(uint16 serverId, TiXmlElement* elem)
             itemType->setCategory(ItemCategoryArmor);
         else if(key == "charges")
             itemType->setCategory(ItemCategoryCharges);
+        else if(key == "slottype") {
+            std::string value = attrib->Attribute("value");
+            if(!value.empty()) {
+                applySlotPosition(itemType, value);
+            }
+        }
+        else if(key == "script") {
+            std::string value = attrib->Attribute("value");
+            if(!value.empty() && hasScriptToken(value, "moveevent")) {
+                for(TiXmlElement* subAttrib = attrib->FirstChildElement(); subAttrib; subAttrib = subAttrib->NextSiblingElement()) {
+                    std::string subKey = subAttrib->Attribute("key");
+                    if(subKey.empty())
+                        continue;
+
+                    stdext::tolower(subKey);
+                    if(subKey == "slot") {
+                        std::string subValue = subAttrib->Attribute("value");
+                        if(!subValue.empty()) {
+                            applySlotPosition(itemType, subValue);
+                        }
+                    }
+                }
+            }
+        }
         else if(key == "type") {
             std::string value = attrib->Attribute("value");
             stdext::tolower(value);

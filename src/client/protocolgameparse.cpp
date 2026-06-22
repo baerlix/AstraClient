@@ -103,17 +103,20 @@ static void pushInspectionImbuements(const std::vector<uint16>& imbuements)
     }
 }
 
+std::string stringifyTaskValue(uint64_t v)
+{
+    return std::to_string(v);
+}
+
 void readTaskCreatureDisplay(const InputMessagePtr& msg, std::map<std::string, std::string>& entry)
 {
-    auto stringify = [](uint64_t v) { return std::to_string(v); };
-
     entry["name"] = msg->getString();
-    entry["lookType"] = stringify(msg->getU16());
-    entry["lookHead"] = stringify(msg->getU8());
-    entry["lookBody"] = stringify(msg->getU8());
-    entry["lookLegs"] = stringify(msg->getU8());
-    entry["lookFeet"] = stringify(msg->getU8());
-    entry["lookAddons"] = stringify(msg->getU8());
+    entry["lookType"] = stringifyTaskValue(msg->getU16());
+    entry["lookHead"] = stringifyTaskValue(msg->getU8());
+    entry["lookBody"] = stringifyTaskValue(msg->getU8());
+    entry["lookLegs"] = stringifyTaskValue(msg->getU8());
+    entry["lookFeet"] = stringifyTaskValue(msg->getU8());
+    entry["lookAddons"] = stringifyTaskValue(msg->getU8());
 }
 }
 
@@ -2201,6 +2204,7 @@ void ProtocolGame::parsePlayerStats(const InputMessagePtr& msg)
             int remainingStoreXpBoostSeconds = msg->getU16();
             bool canBuyMoreStoreXpBoosts = msg->getU8() != 0;
             m_localPlayer->setStoreExpBoostTime(remainingStoreXpBoostSeconds);
+            m_localPlayer->setCanBuyExpBoost(canBuyMoreStoreXpBoosts);
             m_localPlayer->callLuaField("onExpBoostChange", remainingStoreXpBoostSeconds, canBuyMoreStoreXpBoosts);
         }
     }
@@ -2715,11 +2719,12 @@ void ProtocolGame::parseFloorChangeDown(const InputMessagePtr& msg)
 void ProtocolGame::parseOpenOutfitWindow(const InputMessagePtr& msg)
 {
     const bool tibia12OutfitWindow = g_game.getFeature(Otc::GameTibia12Protocol) && g_game.getProtocolVersion() >= 1200;
+    const bool astra860OutfitWindow = g_game.getProtocolVersion() == 860 && g_game.getFeature(Otc::GameAstraOutfitStoreMode);
     Outfit currentOutfit = getOutfit(msg);
     if (g_game.getFeature(Otc::GamePlayerFamiliars)) {
         currentOutfit.setFamiliar(msg->getU16());
     }
-    std::vector<std::tuple<int, std::string, int> > outfitList;
+    std::vector<std::tuple<int, std::string, int, int, int> > outfitList;
 
     if (g_game.getFeature(Otc::GameNewOutfitProtocol)) {
         int outfitCount = tibia12OutfitWindow ? msg->getU16() : msg->getU8();
@@ -2727,13 +2732,15 @@ void ProtocolGame::parseOpenOutfitWindow(const InputMessagePtr& msg)
             int outfitId = msg->getU16();
             std::string outfitName = msg->getString();
             int outfitAddons = msg->getU8();
-            if (tibia12OutfitWindow) {
-                bool locked = msg->getU8() > 0;
-                if (locked) {
-                    msg->getU32(); // store offer id
+            int outfitMode = 0;
+            int outfitOfferId = 0;
+            if (tibia12OutfitWindow || astra860OutfitWindow) {
+                outfitMode = msg->getU8();
+                if (outfitMode == 1) {
+                    outfitOfferId = static_cast<int>(msg->getU32());
                 }
             }
-            outfitList.push_back(std::make_tuple(outfitId, outfitName, outfitAddons));
+            outfitList.push_back(std::make_tuple(outfitId, outfitName, outfitAddons, outfitMode, outfitOfferId));
         }
     } else {
         int outfitStart, outfitEnd;
@@ -2746,7 +2753,7 @@ void ProtocolGame::parseOpenOutfitWindow(const InputMessagePtr& msg)
         }
 
         for (int i = outfitStart; i <= outfitEnd; i++)
-            outfitList.push_back(std::make_tuple(i, "", 0));
+            outfitList.push_back(std::make_tuple(i, "", 0, 0, 0));
     }
 
     std::vector<std::tuple<int, std::string> > mountList;
@@ -2804,7 +2811,7 @@ void ProtocolGame::parseOpenOutfitWindow(const InputMessagePtr& msg)
             std::vector<std::tuple<int, std::string, int, int>> hirelingOutfits;
             for (const auto& outfit : outfitList) {
                 const int outfitId = std::get<0>(outfit);
-                int storeOffer = 0;
+                int storeOffer = std::get<4>(outfit);
                 for (const auto& storeOfferEntry : storeOffers) {
                     if (std::get<0>(storeOfferEntry) == outfitId) {
                         storeOffer = std::get<1>(storeOfferEntry);
@@ -4114,7 +4121,7 @@ void ProtocolGame::parseItemDetail(const InputMessagePtr& msg)
 
     for (uint8 i = 0; i < itemCount; ++i) {
         itemName = msg->getString();
-        inspectedItem = getItem(msg);
+        inspectedItem = getItem(msg, 0, false, false);
 
         const uint8 imbuementCount = msg->getU8();
         imbuements.clear();
@@ -4606,6 +4613,7 @@ CreaturePtr ProtocolGame::getCreature(const InputMessagePtr& msg, int type)
         int8 emblem = -1;
         int8 creatureType = -1;
         int8 icon = -1;
+        uint8 creatureVocation = 0;
         bool unpass = true;
         uint8 mark;
 
@@ -4621,9 +4629,13 @@ CreaturePtr ProtocolGame::getCreature(const InputMessagePtr& msg, int type)
                         creatureType = Proto::CreatureTypeSummonOther;
                 }
                 if (g_game.getProtocolVersion() >= 1215 && creatureType == Proto::CreatureTypePlayer)
-                    msg->getU8(); // vocation id
+                    creatureVocation = msg->getU8();
             }
         }
+
+        const bool hasAstraCreatureIcons =
+            g_game.getFeature(Otc::GameAstraCreatureIcons) ||
+            (g_game.getFeature(Otc::GameCreatureIcons) && g_game.getFeature(Otc::GameAstraQuiverCountU16));
 
         if (g_game.getFeature(Otc::GameCreatureIcons)) {
             icon = msg->getU8();
@@ -4648,7 +4660,7 @@ CreaturePtr ProtocolGame::getCreature(const InputMessagePtr& msg, int type)
             unpass = msg->getU8();
 
         std::vector<std::tuple<uint8_t, uint8_t, uint16_t>> creatureIcons;
-        if (g_game.getFeature(Otc::GameCreatureIcons)) {
+        if (hasAstraCreatureIcons) {
             uint8_t count = msg->getU8();
             creatureIcons.reserve(count);
             for (uint8_t i = 0; i < count; ++i) {
@@ -4679,10 +4691,13 @@ CreaturePtr ProtocolGame::getCreature(const InputMessagePtr& msg, int type)
             if (creatureType != -1)
                 creature->setType(creatureType);
 
+            if (creatureType == Proto::CreatureTypePlayer)
+                creature->setVocation(creatureVocation);
+
             if (icon != -1)
                 creature->setIcon(icon);
 
-            if (g_game.getFeature(Otc::GameCreatureIcons)) {
+            if (hasAstraCreatureIcons) {
                 creature->clearCreatureIcons();
                 for (const auto& iconInfo : creatureIcons) {
                     creature->addCreatureIcon(std::get<0>(iconInfo), std::get<1>(iconInfo), std::get<2>(iconInfo));
@@ -4719,7 +4734,7 @@ CreaturePtr ProtocolGame::getCreature(const InputMessagePtr& msg, int type)
     return creature;
 }
 
-ItemPtr ProtocolGame::getItem(const InputMessagePtr& msg, int id, bool hasDescription)
+ItemPtr ProtocolGame::getItem(const InputMessagePtr& msg, int id, bool hasDescription, bool hasExtendedItemData)
 {
     if (id == 0)
         id = msg->getU16();
@@ -4733,7 +4748,10 @@ ItemPtr ProtocolGame::getItem(const InputMessagePtr& msg, int id, bool hasDescri
     }
 
     if (item->isStackable() || item->isChargeable() || item->isQuiver()) {
-        item->setCountOrSubType(g_game.getFeature(Otc::GameCountU16) ? msg->getU16() : msg->getU8());
+        if(item->isQuiver() && g_game.getFeature(Otc::GameAstraQuiverCountU16))
+            item->setCountOrSubType(msg->getU16());
+        else
+            item->setCountOrSubType(g_game.getFeature(Otc::GameCountU16) ? msg->getU16() : msg->getU8());
     }
     else if (item->isFluidContainer() || item->isSplash()) {
         item->setCountOrSubType(msg->getU8());
@@ -4770,7 +4788,9 @@ ItemPtr ProtocolGame::getItem(const InputMessagePtr& msg, int id, bool hasDescri
         for (uint16 i = 0; i < size; ++i) {
             uint16 key = msg->getU16();
             uint64 value = msg->getU64();
-            item->setCustomAttribute(key, value);
+            if (hasExtendedItemData) {
+                item->setCustomAttribute(key, value);
+            }
         }
     }
 
@@ -4779,16 +4799,29 @@ ItemPtr ProtocolGame::getItem(const InputMessagePtr& msg, int id, bool hasDescri
         if (hasDuration) {
             uint32 duration = msg->getU32();
             bool stopTime = msg->getU8() == 1;
-            item->setDurationTime(static_cast<uint64>(duration) * 1000 + stdext::unixtimeMs());
-            item->setDurationIsPaused(stopTime);
+            if (hasExtendedItemData) {
+                item->setDurationTime(static_cast<uint64>(duration) * 1000 + stdext::unixtimeMs());
+                item->setDurationIsPaused(stopTime);
+            }
         }
     }
 
     if (g_game.getFeature(Otc::GameDisplayItemCharges)) {
         bool hasCharges = msg->getU8() == 1;
         if (hasCharges) {
-            item->setCharges(msg->getU32());
+            uint32 charges = msg->getU32();
             msg->getU8(); // brand-new flag is consumed for protocol alignment; Astra does not render it.
+            if (hasExtendedItemData) {
+                item->setCharges(charges);
+            }
+        }
+    }
+
+    if (g_game.getFeature(Otc::GameAstraItemMetadata)) {
+        const uint16 slotPosition = msg->getU16();
+        const uint8 flags = msg->getU8();
+        if (hasExtendedItemData) {
+            item->setAstraItemMetadata(slotPosition, flags);
         }
     }
 
@@ -4890,24 +4923,62 @@ void ProtocolGame::parseMultiOfflineTrainingDialog(const InputMessagePtr& /*msg*
 
 void ProtocolGame::parseTaskHuntingBasicData(const InputMessagePtr& msg)
 {
-    // Matches server protocol.lua sendSoulSealsData byte-for-byte
-    // Server sends: opcode 0xBA -> balance(U32) + count(U16) +
-    // entries{raceId(U16), name(str), outfit(U16+5 bytes), stars(U8), cost(U32), mastered(U8)}
-    auto stringify = [](uint64_t v) { return std::to_string(v); };
+    // Server sends: monsterCount(U16), monsters{raceId(U16), difficulty(U8)},
+    // optionCount(U8), options{difficulty(U8), grade(U8), nonBestiaryKills(U16),
+    // nonBestiaryReward(U16), fullBestiaryKills(U16), fullBestiaryReward(U16)},
+    // rerollPrice(U32), removePrice(U32), wildcardSelectPrice(U8), rerollWildcardPrice(U8).
+    const uint16_t monsterCount = msg->getU16();
+    std::map<int, int> monsterInfo;
+    for (uint16_t i = 0; i < monsterCount; ++i) {
+        const uint16_t raceId = msg->getU16();
+        const uint8_t difficulty = msg->getU8();
+        monsterInfo[static_cast<int>(raceId)] = static_cast<int>(difficulty);
+    }
+
+    const uint8_t optionCount = msg->getU8();
+    std::vector<std::map<std::string, std::string>> rewardData;
+    rewardData.reserve(optionCount);
+    for (uint8_t i = 0; i < optionCount; ++i) {
+        std::map<std::string, std::string> option;
+        option["difficulty"] = stringifyTaskValue(msg->getU8());
+        option["grade"] = stringifyTaskValue(msg->getU8());
+        option["nonBestiaryKills"] = stringifyTaskValue(msg->getU16());
+        option["nonBestiaryReward"] = stringifyTaskValue(msg->getU16());
+        option["fullBestiaryKills"] = stringifyTaskValue(msg->getU16());
+        option["fullBestiaryReward"] = stringifyTaskValue(msg->getU16());
+        rewardData.emplace_back(std::move(option));
+    }
+
+    const uint32_t rerollPrice = msg->getU32();
+    const uint32_t removePrice = msg->getU32();
+    const uint8_t wildcardSelectPrice = msg->getU8();
+    const uint8_t rerollWildcardPrice = msg->getU8();
+
+    g_lua.callGlobalField("g_game", "onPreyHuntingBaseData", monsterInfo, rewardData);
+    g_lua.callGlobalField("g_game", "onPreyHuntingPrice", rerollPrice, removePrice, wildcardSelectPrice, rerollWildcardPrice);
+}
+
+void ProtocolGame::parseSoulsealsData(const InputMessagePtr& msg)
+{
+    // Task Board subtype 0x03:
+    // balance(U32), count(U16), entries{
+    //   raceId(U16), name(string), lookType(U16), lookHead(U8), lookBody(U8),
+    //   lookLegs(U8), lookFeet(U8), lookAddons(U8), stars(U8), cost(U32),
+    //   mastered(U8)
+    // }.
 
     const uint32_t balance = msg->getU32();
     const uint16_t count = msg->getU16();
-
     std::vector<std::map<std::string, std::string>> entries;
     entries.reserve(count);
 
     for (uint16_t i = 0; i < count; ++i) {
         std::map<std::string, std::string> entry;
-        entry["raceId"] = stringify(msg->getU16());
+        entry["raceId"] = stringifyTaskValue(msg->getU16());
         readTaskCreatureDisplay(msg, entry);
-        entry["stars"] = stringify(msg->getU8());
-        entry["cost"] = stringify(msg->getU32());
-        entry["mastered"] = stringify(msg->getU8());
+        entry["stars"] = stringifyTaskValue(msg->getU8());
+        entry["cost"] = stringifyTaskValue(msg->getU32());
+        entry["mastered"] = stringifyTaskValue(msg->getU8());
         entry["done"] = entry["mastered"];  // backward compat
         entries.emplace_back(std::move(entry));
     }
@@ -4924,6 +4995,12 @@ void ProtocolGame::parseTaskBoardData(const InputMessagePtr& msg)
         parseTaskBoardWeeklyData(msg);
     } else if (mode == 2) {
         parseTaskBoardShopData(msg);
+    } else if (mode == 3) {
+        parseSoulsealsData(msg);
+    } else if (mode == 4) {
+        parseTaskBoardBountyKillUpdate(msg);
+    } else if (mode == 5) {
+        parseTaskBoardWeeklyKillUpdate(msg);
     } else {
         const int unreadSize = msg->getUnreadSize();
         if (unreadSize > 0)
@@ -4936,39 +5013,37 @@ void ProtocolGame::parseTaskBoardData(const InputMessagePtr& msg)
 void ProtocolGame::parseTaskBoardBountyData(const InputMessagePtr& msg)
 {
     // Matches server protocol.lua sendBountyTaskData byte-for-byte
-    auto stringify = [](uint64_t v) { return std::to_string(v); };
-
     std::map<std::string, std::string> header;
-    header["state"] = stringify(msg->getU8());
-    header["difficulty"] = stringify(msg->getU8() + 1);  // server sends 0-indexed
+    header["state"] = stringifyTaskValue(msg->getU8());
+    header["difficulty"] = stringifyTaskValue(msg->getU8() + 1);  // server sends 0-indexed
 
     // 3 creature entries
     std::vector<std::map<std::string, std::string>> monsters;
     monsters.reserve(3);
     for (uint8_t i = 0; i < 3; ++i) {
         std::map<std::string, std::string> entry;
-        entry["raceId"] = stringify(msg->getU16());
+        entry["raceId"] = stringifyTaskValue(msg->getU16());
         readTaskCreatureDisplay(msg, entry);
-        entry["currentKills"] = stringify(msg->getU16());
-        entry["totalKills"] = stringify(msg->getU16());
-        entry["rewardXp"] = stringify(msg->getU16());
-        entry["rewardPoints"] = stringify(msg->getU16());
-        entry["grade"] = stringify(msg->getU8());
+        entry["currentKills"] = stringifyTaskValue(msg->getU16());
+        entry["totalKills"] = stringifyTaskValue(msg->getU16());
+        entry["rewardXp"] = stringifyTaskValue(msg->getU16());
+        entry["rewardPoints"] = stringifyTaskValue(msg->getU16());
+        entry["grade"] = stringifyTaskValue(msg->getU8());
         const uint8_t claimState = msg->getU8();
-        entry["claimState"] = stringify(claimState);
-        entry["taskIndex"] = stringify(msg->getU8());
+        entry["claimState"] = stringifyTaskValue(claimState);
+        entry["taskIndex"] = stringifyTaskValue(msg->getU8());
         entry["rewardReroll"] = "1";
         entry["isActive"] = (claimState == 1) ? "1" : "0";
         entry["isCompleted"] = (claimState == 2) ? "1" : "0";
         monsters.emplace_back(std::move(entry));
     }
 
-    header["rerollPoints"] = stringify(msg->getU8());
+    header["rerollPoints"] = stringifyTaskValue(msg->getU8());
     const uint8_t rerollMode = msg->getU8();
-    header["rerollMode"] = stringify(rerollMode);
+    header["rerollMode"] = stringifyTaskValue(rerollMode);
     header["claimDaily"] = rerollMode == 0 ? "1" : "0";
-    header["rerollTimestamp"] = stringify(msg->getU32());
-    header["upgrade"] = stringify(msg->getU8());
+    header["rerollTimestamp"] = stringifyTaskValue(msg->getU32());
+    header["upgrade"] = stringifyTaskValue(msg->getU8());
 
     // 4 talisman paths
     std::vector<std::map<std::string, std::string>> talisman;
@@ -4995,10 +5070,10 @@ void ProtocolGame::parseTaskBoardBountyData(const InputMessagePtr& msg)
         const uint16_t currentValue = getTalismanBonus(currentLevel, i);
         const uint16_t nextValue = canUpgrade ? getTalismanBonus(currentLevel + 1, i) : 0;
 
-        entry["currentValue"] = stringify(currentValue);
-        entry["nextValue"] = stringify(nextValue);
+        entry["currentValue"] = stringifyTaskValue(currentValue);
+        entry["nextValue"] = stringifyTaskValue(nextValue);
         entry["canUpgrade"] = canUpgrade ? "1" : "0";
-        entry["upgradeCost"] = stringify(upgradeCost);
+        entry["upgradeCost"] = stringifyTaskValue(upgradeCost);
         talisman.emplace_back(std::move(entry));
     }
 
@@ -5009,9 +5084,9 @@ void ProtocolGame::parseTaskBoardBountyData(const InputMessagePtr& msg)
     for (uint8_t i = 0; i < 5; ++i) {
         std::map<std::string, std::string> entry;
         if (i < preferredCount) {
-            entry["enabled"] = stringify(msg->getU8());
-            entry["preferredRaceId"] = stringify(msg->getU16());
-            entry["unwantedRaceId"] = stringify(msg->getU16());
+            entry["enabled"] = stringifyTaskValue(msg->getU8());
+            entry["preferredRaceId"] = stringifyTaskValue(msg->getU16());
+            entry["unwantedRaceId"] = stringifyTaskValue(msg->getU16());
         } else {
             entry["enabled"] = "0";
             entry["preferredRaceId"] = "0";
@@ -5029,7 +5104,7 @@ void ProtocolGame::parseTaskBoardBountyData(const InputMessagePtr& msg)
         availableCreatures.reserve(availableCreatureCount);
         for (uint16_t i = 0; i < availableCreatureCount; ++i) {
             std::map<std::string, std::string> entry;
-            entry["raceId"] = stringify(msg->getU16());
+            entry["raceId"] = stringifyTaskValue(msg->getU16());
             readTaskCreatureDisplay(msg, entry);
             availableCreatures.emplace_back(std::move(entry));
         }
@@ -5045,8 +5120,6 @@ void ProtocolGame::parseTaskBoardBountyData(const InputMessagePtr& msg)
 void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
 {
     // Matches server protocol.lua sendWeeklyTaskData byte-for-byte
-    auto stringify = [](uint64_t v) { return std::to_string(v); };
-
     std::vector<std::map<std::string, std::string>> monsters;
 
     // Any creature counters
@@ -5055,8 +5128,8 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
     if (anyCreatureTotal > 0 || anyCreatureKills > 0) {
         std::map<std::string, std::string> anyEntry;
         anyEntry["raceId"] = "0";
-        anyEntry["current"] = stringify(anyCreatureKills);
-        anyEntry["total"] = stringify(anyCreatureTotal);
+        anyEntry["current"] = stringifyTaskValue(anyCreatureKills);
+        anyEntry["total"] = stringifyTaskValue(anyCreatureTotal);
         anyEntry["state"] = anyCreatureKills >= anyCreatureTotal ? "1" : "0";
         monsters.emplace_back(std::move(anyEntry));
     }
@@ -5065,13 +5138,13 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
     const uint8_t killTaskCount = msg->getU8();
     for (uint8_t i = 0; i < killTaskCount; ++i) {
         std::map<std::string, std::string> entry;
-        entry["raceId"] = stringify(msg->getU16());
+        entry["raceId"] = stringifyTaskValue(msg->getU16());
         readTaskCreatureDisplay(msg, entry);
         const uint16_t kills = msg->getU16();
         const uint16_t required = msg->getU16();
-        entry["current"] = stringify(kills);
-        entry["total"] = stringify(required);
-        entry["grade"] = stringify(msg->getU8());
+        entry["current"] = stringifyTaskValue(kills);
+        entry["total"] = stringifyTaskValue(required);
+        entry["grade"] = stringifyTaskValue(msg->getU8());
         entry["state"] = kills >= required ? "1" : "0";
         monsters.emplace_back(std::move(entry));
     }
@@ -5082,18 +5155,18 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
     items.reserve(deliveryTaskCount);
     for (uint8_t i = 0; i < deliveryTaskCount; ++i) {
         std::map<std::string, std::string> entry;
-        entry["itemId"] = stringify(msg->getU16());
-        entry["clientId"] = stringify(msg->getU16());
+        entry["itemId"] = stringifyTaskValue(msg->getU16());
+        entry["clientId"] = stringifyTaskValue(msg->getU16());
         const uint8_t amount = msg->getU8();
         const uint8_t required = msg->getU8();
         const uint32_t available = msg->getU32();
         const uint8_t grade = msg->getU8();
-        entry["amount"] = stringify(amount);
-        entry["required"] = stringify(required);
-        entry["available"] = stringify(available);
-        entry["current"] = stringify(amount);
-        entry["total"] = stringify(required);
-        entry["grade"] = stringify(grade);
+        entry["amount"] = stringifyTaskValue(amount);
+        entry["required"] = stringifyTaskValue(required);
+        entry["available"] = stringifyTaskValue(available);
+        entry["current"] = stringifyTaskValue(amount);
+        entry["total"] = stringifyTaskValue(required);
+        entry["grade"] = stringifyTaskValue(grade);
         entry["claimed"] = "0";
         entry["state"] = amount >= required ? "1" : "0";
         items.emplace_back(std::move(entry));
@@ -5102,22 +5175,22 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
     // Header fields
     std::map<std::string, std::string> header;
     const uint8_t difficulty = msg->getU8();
-    header["difficulty"] = stringify(difficulty + 1);  // server sends 0-indexed
-    header["maxExperience"] = stringify(msg->getU32());
-    header["maxDeliveryExperience"] = stringify(msg->getU32());
-    header["completedKillTasks"] = stringify(msg->getU8());
-    header["completedDeliveryTasks"] = stringify(msg->getU8());
-    header["weeklyProgress"] = stringify(msg->getU8());
-    header["pointsEarned"] = stringify(msg->getU32());
-    header["soulsealsEarned"] = stringify(msg->getU32());
-    header["soulsealsBalance"] = stringify(msg->getU32());
-    header["needsReward"] = stringify(msg->getU8());
-    header["hasExpansion"] = stringify(msg->getU8());
+    header["difficulty"] = stringifyTaskValue(difficulty + 1);  // server sends 0-indexed
+    header["maxExperience"] = stringifyTaskValue(msg->getU32());
+    header["maxDeliveryExperience"] = stringifyTaskValue(msg->getU32());
+    header["completedKillTasks"] = stringifyTaskValue(msg->getU8());
+    header["completedDeliveryTasks"] = stringifyTaskValue(msg->getU8());
+    header["weeklyProgress"] = stringifyTaskValue(msg->getU8());
+    header["pointsEarned"] = stringifyTaskValue(msg->getU32());
+    header["soulsealsEarned"] = stringifyTaskValue(msg->getU32());
+    header["soulsealsBalance"] = stringifyTaskValue(msg->getU32());
+    header["needsReward"] = stringifyTaskValue(msg->getU8());
+    header["hasExpansion"] = stringifyTaskValue(msg->getU8());
 
     // Compute derived header fields (keep backward compat with Lua UI)
     header["remainingDays"] = "7";
     const uint8_t hasExpansion = std::stoi(header["hasExpansion"]);
-    header["totalTaskSlots"] = stringify(hasExpansion ? 9 : 6);
+    header["totalTaskSlots"] = stringifyTaskValue(hasExpansion ? 9 : 6);
     const uint8_t completedKills = std::stoi(header["completedKillTasks"]);
     const uint8_t completedDeliveries = std::stoi(header["completedDeliveryTasks"]);
     const uint8_t totalCompleted = completedKills + completedDeliveries;
@@ -5126,13 +5199,13 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
     else if (totalCompleted >= 12) rewardMultiplier = 5;
     else if (totalCompleted >= 8) rewardMultiplier = 3;
     else if (totalCompleted >= 4) rewardMultiplier = 2;
-    header["rewardMultiplier"] = stringify(rewardMultiplier);
+    header["rewardMultiplier"] = stringifyTaskValue(rewardMultiplier);
     header["extraSlot"] = hasExpansion ? "1" : "0";
     header["unlocked"] = hasExpansion ? "1" : "0";
 
     static const uint8_t killTaskPointsByDifficulty[4] = { 25, 50, 100, 110 };
     const uint8_t diffIdx = std::min<uint8_t>(3, std::max<uint8_t>(0, difficulty));
-    header["killTaskPoints"] = stringify(killTaskPointsByDifficulty[diffIdx]);
+    header["killTaskPoints"] = stringifyTaskValue(killTaskPointsByDifficulty[diffIdx]);
     header["deliveryTaskPoints"] = "75";
     header["soulsealPointsPerTask"] = "1";
 
@@ -5142,9 +5215,9 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
     static const uint16_t difficultyMinLevels[4] = { 1, 150, 300, 500 };
     for (uint8_t i = 0; i < 4; ++i) {
         std::map<std::string, std::string> entry;
-        entry["id"] = stringify(i + 1);
+        entry["id"] = stringifyTaskValue(i + 1);
         entry["name"] = difficultyNames[i];
-        entry["minLevel"] = stringify(difficultyMinLevels[i]);
+        entry["minLevel"] = stringifyTaskValue(difficultyMinLevels[i]);
         difficulties.emplace_back(std::move(entry));
     }
 
@@ -5154,8 +5227,6 @@ void ProtocolGame::parseTaskBoardWeeklyData(const InputMessagePtr& msg)
 void ProtocolGame::parseTaskBoardShopData(const InputMessagePtr& msg)
 {
     // Matches server protocol.lua sendHuntingTaskShopData byte-for-byte
-    auto stringify = [](uint64_t v) { return std::to_string(v); };
-
     std::vector<std::map<std::string, std::string>> items;
     const uint32_t taskHuntingPoints = msg->getU32();
     const uint8_t offerCount = msg->getU8();
@@ -5170,29 +5241,29 @@ void ProtocolGame::parseTaskBoardShopData(const InputMessagePtr& msg)
         const uint8_t purchased = msg->getU8();
         const uint8_t type = msg->getU8();
 
-        entry["id"] = stringify(id);
+        entry["id"] = stringifyTaskValue(id);
         entry["title"] = name;
         entry["description"] = "";  // server doesn't send description
-        entry["count"] = stringify(count);
-        entry["price"] = stringify(price);
+        entry["count"] = stringifyTaskValue(count);
+        entry["price"] = stringifyTaskValue(price);
         entry["bought"] = purchased ? "1" : "0";
-        entry["purchased"] = stringify(purchased);
+        entry["purchased"] = stringifyTaskValue(purchased);
 
         // Type-specific fields
         switch (type) {
         case 0: // Item
             entry["type"] = "Decoration";
-            entry["itemId"] = stringify(msg->getU16());
+            entry["itemId"] = stringifyTaskValue(msg->getU16());
             entry["clientId"] = entry["itemId"];
             break;
         case 1: // Mount
             entry["type"] = "Mount";
-            entry["lookType"] = stringify(msg->getU16());
+            entry["lookType"] = stringifyTaskValue(msg->getU16());
             break;
         case 2: // Outfit
             entry["type"] = "Outfit";
-            entry["lookType"] = stringify(msg->getU16());
-            entry["addon"] = stringify(msg->getU16());
+            entry["lookType"] = stringifyTaskValue(msg->getU16());
+            entry["addon"] = stringifyTaskValue(msg->getU16());
             entry["lookHead"] = "0";
             entry["lookBody"] = "0";
             entry["lookLegs"] = "0";
@@ -5201,7 +5272,7 @@ void ProtocolGame::parseTaskBoardShopData(const InputMessagePtr& msg)
             break;
         case 3: // Item Double
             entry["type"] = "Decoration";
-            entry["itemId"] = stringify(msg->getU16());
+            entry["itemId"] = stringifyTaskValue(msg->getU16());
             entry["clientId"] = entry["itemId"];
             break;
         case 4: // Bonus Promotion
@@ -5226,4 +5297,26 @@ void ProtocolGame::parseTaskBoardShopData(const InputMessagePtr& msg)
     }
 
     g_lua.callGlobalField("g_game", "onTaskHuntingShopData", items, taskHuntingPoints);
+}
+
+static void parseGenericKillUpdate(const InputMessagePtr& msg, const char* callbackName)
+{
+    // Task Board subtypes 0x04 (bounty) / 0x05 (weekly):
+    // raceId(U16), currentKills(U16), totalKills(U16), isCompleted(U8).
+    // Mirrors the server task_board protocol kill-update packets.
+    const uint16_t raceId = msg->getU16();
+    const uint16_t currentKills = msg->getU16();
+    const uint16_t totalKills = msg->getU16();
+    const uint8_t isCompleted = msg->getU8();
+    g_lua.callGlobalField("g_game", callbackName, raceId, currentKills, totalKills, isCompleted);
+}
+
+void ProtocolGame::parseTaskBoardBountyKillUpdate(const InputMessagePtr& msg)
+{
+    parseGenericKillUpdate(msg, "onBountyKillUpdate");
+}
+
+void ProtocolGame::parseTaskBoardWeeklyKillUpdate(const InputMessagePtr& msg)
+{
+    parseGenericKillUpdate(msg, "onWeeklyKillUpdate");
 }
